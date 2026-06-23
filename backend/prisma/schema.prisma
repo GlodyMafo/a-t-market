@@ -1,0 +1,206 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum ProductType {
+  LOCAL
+  INTERNATIONAL
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  DELIVERED
+  CANCELLED
+}
+
+enum TrackingStatus {
+  ORDER_VALIDATED
+  PURCHASED
+  PREPARING
+  IN_CHINA
+  IN_TRANSIT
+  ARRIVED_DRC
+  OUT_FOR_DELIVERY
+  DELIVERED
+}
+
+model User {
+  id       String  @id @default(cuid())
+  email    String  @unique
+  phone    String? @unique
+  password String
+  role     Role    @default(USER)
+
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  cart                Cart?
+  orders              Order[]
+  internationalQuotes InternationalQuote[]
+}
+
+model Product {
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+  imageUrl    String?
+  price       Decimal @db.Decimal(10, 2)
+
+  type ProductType @default(LOCAL)
+
+  isActive Boolean @default(true)
+
+  inventory Inventory?
+
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+}
+
+model Inventory {
+  id String @id @default(cuid())
+
+  productId String  @unique
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  quantity Int @default(0)
+
+  updatedAt DateTime @updatedAt
+}
+
+model Cart {
+  id String @id @default(cuid())
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  items CartItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CartItem {
+  id String @id @default(cuid())
+
+  cartId String
+  cart   Cart   @relation(fields: [cartId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  quantity Int @default(1)
+}
+
+model Order {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  status OrderStatus @default(PENDING_PAYMENT)
+
+  totalAmount Decimal @db.Decimal(10, 2)
+
+  items OrderItem[]
+
+  payment Payment?
+
+  trackingEvents TrackingEvent[]
+
+  createdAt DateTime @default(now())
+}
+
+model OrderItem {
+  id String @id @default(cuid())
+
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  quantity Int
+
+  price Decimal @db.Decimal(10, 2)
+}
+
+model Payment {
+  id String @id @default(cuid())
+
+  orderId String @unique
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  amount Decimal @db.Decimal(10, 2)
+
+  status PaymentStatus @default(PENDING)
+
+  providerReference String?
+
+  createdAt DateTime @default(now())
+}
+
+model TrackingEvent {
+  id String @id @default(cuid())
+
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  status TrackingStatus
+
+  message String?
+
+  createdAt DateTime @default(now())
+}
+
+model InternationalQuote {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  productUrl String
+
+  productName String?
+
+  productPrice Decimal @db.Decimal(10, 2)
+
+  shippingCost Decimal @db.Decimal(10, 2)
+
+  customsCost Decimal @db.Decimal(10, 2)
+
+  commissionCost Decimal @db.Decimal(10, 2)
+
+  totalPrice Decimal @db.Decimal(10, 2)
+
+  createdAt DateTime @default(now())
+}
+
+model Setting {
+  id String @id @default(cuid())
+
+  key String @unique
+
+  value String
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+}
