@@ -42,17 +42,22 @@ enum TrackingStatus {
 }
 
 model User {
-  id       String  @id @default(cuid())
+  id String @id @default(cuid())
+
   email    String  @unique
   phone    String? @unique
   password String
-  role     Role    @default(USER)
 
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-  cart                Cart?
-  orders              Order[]
-  internationalQuotes InternationalQuote[]
+  role Role @default(USER)
+
+  cart Cart?
+
+  orders Order[]
+
+  quotes InternationalQuote[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Product {
