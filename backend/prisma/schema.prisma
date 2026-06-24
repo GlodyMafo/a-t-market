@@ -61,11 +61,17 @@ model User {
 }
 
 model Product {
-  id          String  @id @default(cuid())
-  name        String
+  id String @id @default(cuid())
+
+  name String
+
+  slug String @unique
+
   description String?
-  imageUrl    String?
-  price       Decimal @db.Decimal(10, 2)
+
+  price Decimal @db.Decimal(10, 2)
+
+  currency String @default("USD")
 
   type ProductType @default(LOCAL)
 
@@ -73,10 +79,27 @@ model Product {
 
   inventory Inventory?
 
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
+  images ProductImage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   cartItems  CartItem[]
   orderItems OrderItem[]
+}
+
+model ProductImage {
+  id String @id @default(cuid())
+
+  productId String
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  imageUrl String
+
+  position Int
+
+  createdAt DateTime @default(now())
 }
 
 model Inventory {
