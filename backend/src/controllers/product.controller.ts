@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { createProduct } from "../services/product.service";
+import { createProduct, getProducts } from "../services/product.service";
 
 
 export async function createProductController(
@@ -25,6 +25,35 @@ export async function createProductController(
     return res.status(400).json({
       success: false,
       message: error.message
+    });
+
+  }
+
+}
+
+// Get all active products
+
+export async function getProductsController(
+  req: Request,
+  res: Response
+) {
+
+  try {
+
+    const products = await getProducts();
+
+
+    res.json({
+      success: true,
+      data: products
+    });
+
+
+  } catch (error) {
+
+    res.status(500).json({
+      success:false,
+      message:"Failed to fetch products"
     });
 
   }

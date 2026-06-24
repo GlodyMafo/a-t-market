@@ -9,6 +9,8 @@ interface CreateProductData {
 }
 
 
+// Create a product
+
 export async function createProduct(data: CreateProductData) {
 
   const {
@@ -73,4 +75,28 @@ export async function createProduct(data: CreateProductData) {
 
 
   return product;
+}
+
+
+// Get all active products
+
+export async function getProducts() {
+
+  const products = await prisma.product.findMany({
+    where: {
+      isActive: true // Ici nous prenons uniquement les produits actifs
+    },
+
+    include: {
+      images: true,
+      inventory: true
+    },
+
+    orderBy: {
+      createdAt: "desc"
+    }
+  });
+
+
+  return products;
 }
