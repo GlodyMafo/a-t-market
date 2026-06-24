@@ -1,6 +1,10 @@
 import { Router } from "express";
-import { createProductController,  getProductsController} from "../controllers/product.controller";
-
+import 
+{ createProductController,  
+  getProductsController ,
+  getProductByIdController} 
+  from "../controllers/product.controller";
+ 
 
 const router = Router();
 
@@ -13,6 +17,11 @@ router.post(
 router.get(
  "/",
  getProductsController
+);
+
+router.get(
+ "/:id",
+ getProductByIdController
 );
 
 

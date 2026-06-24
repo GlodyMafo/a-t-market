@@ -100,3 +100,27 @@ export async function getProducts() {
 
   return products;
 }
+
+// Get product details by ID
+
+export async function getProductById(id: string) {
+
+  const product = await prisma.product.findUnique({
+    where: {
+      id
+    },
+
+    include: {
+      images: true,
+      inventory: true
+    }
+  });
+
+
+  if (!product) {
+    throw new Error("Produit introuvable");
+  }
+
+
+  return product;
+}
