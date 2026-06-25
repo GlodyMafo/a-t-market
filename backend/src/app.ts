@@ -4,6 +4,8 @@ import cors from "cors";
 import healthRoutes from "./routes/health.routes";
 import productRoutes from "./routes/product.routes";
 import cartRoutes from "./routes/cart.routes";
+import orderRoutes from "./routes/order.routes";
+
 
 const app = express();
 
@@ -21,6 +23,11 @@ app.use(
 app.use(
   "/api/cart",
   cartRoutes
+);
+
+app.use(
+ "/api/orders",
+ orderRoutes
 );
 
 export default app;

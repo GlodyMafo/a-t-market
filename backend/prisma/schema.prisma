@@ -69,7 +69,9 @@ model Product {
 
   description String?
 
-  price Decimal @db.Decimal(10, 2)
+  price Decimal @db.Decimal(10,2)
+
+  margin Decimal @default(0) @db.Decimal(10,2)
 
   currency String @default("USD")
 
@@ -169,7 +171,11 @@ model OrderItem {
 
   quantity Int
 
-  price Decimal @db.Decimal(10, 2)
+  basePrice Decimal @default(0) @db.Decimal(10,2)
+
+  margin Decimal @default(0) @db.Decimal(10,2)
+
+  price Decimal @db.Decimal(10,2)
 }
 
 model Payment {

@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "OrderItem" ADD COLUMN     "basePrice" DECIMAL(10,2) NOT NULL DEFAULT 0,
+ADD COLUMN     "margin" DECIMAL(10,2) NOT NULL DEFAULT 0;
+
+-- AlterTable
+ALTER TABLE "Product" ADD COLUMN     "margin" DECIMAL(10,2) NOT NULL DEFAULT 0;

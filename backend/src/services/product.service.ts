@@ -5,6 +5,7 @@ interface CreateProductData {
   slug: string;
   description?: string;
   price: number;
+  margin: number;
   images: string[];
 }
 
@@ -18,6 +19,7 @@ export async function createProduct(data: CreateProductData) {
     slug,
     description,
     price,
+    margin,
     images
   } = data;
 
@@ -40,6 +42,7 @@ export async function createProduct(data: CreateProductData) {
             slug,
             description,
             price,
+            margin,
             currency: "USD",
             type: "LOCAL",
 
