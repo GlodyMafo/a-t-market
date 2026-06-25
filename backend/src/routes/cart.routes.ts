@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { addToCartController,  getCartController } from "../controllers/cart.controller";
+import { addToCartController,  getCartController, updateCartItemController,  removeCartItemController } from "../controllers/cart.controller";
 
 const router = Router();
 
@@ -11,6 +11,16 @@ router.post(
 router.get(
  "/:userId",
  getCartController
+);
+
+router.patch(
+ "/items/:id",
+ updateCartItemController
+);
+
+router.delete(
+ "/items/:id",
+ removeCartItemController
 );
 
 export default router;

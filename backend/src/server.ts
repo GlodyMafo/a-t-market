@@ -7,6 +7,6 @@ const PORT = Number(process.env.PORT) || 5000;
 
 app.listen(PORT, () => {
   console.log(
-    `🚀 A&T Market API running on port ${PORT}`
+    `A&T Market API running on port ${PORT}`
   );
 });

@@ -139,3 +139,94 @@ export async function getCartByUser(
 
 }
 
+// Update cart item quantity
+
+export async function updateCartItemQuantity(
+  itemId: string,
+  quantity: number
+) {
+
+
+  if (quantity <= 0) {
+
+    throw new Error(
+      "La quantité doit être supérieure à 0"
+    );
+
+  }
+
+
+  const item =
+    await prisma.cartItem.findUnique({
+      where: {
+        id: itemId
+      }
+    });
+
+
+  if (!item) {
+
+    throw new Error(
+      "Article panier introuvable"
+    );
+
+  }
+
+
+  const updatedItem =
+    await prisma.cartItem.update({
+
+      where: {
+        id: itemId
+      },
+
+      data: {
+        quantity
+      }
+
+    });
+
+
+  return updatedItem;
+
+}
+
+
+// Remove cart item
+
+export async function removeCartItem(
+  itemId: string
+) {
+
+
+  const item =
+    await prisma.cartItem.findUnique({
+      where:{
+        id:itemId
+      }
+    });
+
+
+  if(!item){
+
+    throw new Error(
+      "Article panier introuvable"
+    );
+
+  }
+
+
+  await prisma.cartItem.delete({
+
+    where:{
+      id:itemId
+    }
+
+  });
+
+
+  return {
+    message:"Article supprimé du panier"
+  };
+
+}
