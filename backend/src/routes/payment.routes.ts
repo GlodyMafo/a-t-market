@@ -1,7 +1,8 @@
 import { Router } from "express";
 
 import {
-  createPaymentController
+  createPaymentController,
+  confirmPaymentController
 } from "../controllers/payment.controller";
 
 const router = Router();
@@ -14,4 +15,13 @@ router.post(
 
 );
 
+router.post(
+
+  "/:paymentId/confirm",
+
+  confirmPaymentController
+
+);
+
 export default router;
+

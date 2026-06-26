@@ -56,3 +56,86 @@ export async function createPayment(
   return payment;
 
 }
+
+export async function confirmPayment(
+  paymentId: string
+) {
+
+  const payment =
+    await prisma.payment.findUnique({
+
+      where: {
+        id: paymentId
+      }
+
+    });
+
+
+  if (!payment) {
+
+    throw new Error(
+      "Paiement introuvable"
+    );
+
+  }
+
+
+  if (payment.status === "PAID") {
+
+    throw new Error(
+      "Paiement déjà confirmé"
+    );
+
+  }
+
+
+  const result =
+    await prisma.$transaction(
+
+      async (tx) => {
+
+
+        const updatedPayment =
+          await tx.payment.update({
+
+            where: {
+              id: paymentId
+            },
+
+            data: {
+
+              status: "PAID"
+
+            }
+
+          });
+
+
+        await tx.order.update({
+
+          where: {
+
+            id: payment.orderId
+
+          },
+
+          data: {
+
+            status: "PAID"
+
+          }
+
+        });
+
+
+        return updatedPayment;
+
+
+      }
+
+    );
+
+
+  return result;
+
+}
