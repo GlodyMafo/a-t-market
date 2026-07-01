@@ -6,8 +6,10 @@ import productRoutes from "./routes/product.routes";
 import cartRoutes from "./routes/cart.routes";
 import orderRoutes from "./routes/order.routes";
 import paymentRoutes from "./routes/payment.routes";
+import { startPaymentReconciliationJob }
+from "./jobs/payment.reconciliation.job";
 
-
+startPaymentReconciliationJob();
 
 const app = express();
 

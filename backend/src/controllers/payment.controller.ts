@@ -2,8 +2,11 @@ import { Request, Response } from "express";
 
 import {
   createPayment,
-  confirmPayment
+  confirmPayment,
+  handlePawapayCallback
 } from "../services/payment.service";
+
+
 
 export async function createPaymentController(
 
@@ -13,38 +16,71 @@ export async function createPaymentController(
 
 ) {
 
+
   try {
 
+
     const {
-      orderId
+
+      orderId,
+
+      phoneNumber,
+
+      provider
+
+
     } = req.body;
 
+
+
     const payment =
+
       await createPayment(
-        orderId
+
+        orderId,
+
+        phoneNumber,
+
+        provider
+
       );
+
+
 
     return res.status(201).json({
 
+
       success: true,
+
 
       data: payment
 
+
     });
+
+
 
   } catch (error: any) {
 
+
     return res.status(400).json({
+
 
       success: false,
 
+
       message: error.message
+
 
     });
 
+
   }
 
+
 }
+
+
 
 export async function confirmPaymentController(
 
@@ -54,40 +90,100 @@ export async function confirmPaymentController(
 
 ) {
 
+
   try {
 
 
     const {
+
       paymentId
+
     } = req.params;
 
 
+
     const payment =
+
       await confirmPayment(
+
         paymentId
+
       );
+
 
 
     return res.status(200).json({
 
-      success:true,
 
-      data:payment
+      success: true,
+
+
+      data: payment
+
 
     });
 
 
-  } catch(error:any) {
+
+  } catch (error: any) {
 
 
     return res.status(400).json({
 
-      success:false,
 
-      message:error.message
+      success: false,
+
+
+      message: error.message
+
 
     });
 
+
+  }
+
+
+}
+
+
+export async function pawapayCallbackController(
+  req: Request,
+  res: Response
+) {
+
+  try {
+
+    console.log(
+      "===== PAWAPAY CALLBACK ====="
+    );
+
+
+    console.log(
+      req.body
+    );
+
+
+    return res.status(200).json({
+
+      success: true
+
+    });
+
+
+  } catch (error: any) {
+
+
+    console.error(error);
+
+
+    return res.status(400).json({
+
+      success: false,
+
+      message:
+        "Webhook processing failed"
+
+    });
 
   }
 

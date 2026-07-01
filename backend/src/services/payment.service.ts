@@ -5,19 +5,32 @@ import { createDeposit } from "./pawapay.service";
 
 
 export async function createPayment(
-    orderId: string
+
+    orderId: string,
+
+    phoneNumber: string,
+
+    provider: string
+
 ) {
 
+
     const depositId = randomUUID();
+
+
 
     const order =
         await prisma.order.findUnique({
 
             where: {
+
                 id: orderId
+
             }
 
         });
+
+
 
     if (!order) {
 
@@ -27,22 +40,31 @@ export async function createPayment(
 
     }
 
-    const existingPayment =
-        await prisma.payment.findUnique({
+
+    const paidPayment =
+        await prisma.payment.findFirst({
 
             where: {
-                orderId
+
+                orderId,
+
+                status: "PAID"
+
             }
 
         });
 
-    if (existingPayment) {
+
+
+    if (paidPayment) {
 
         throw new Error(
-            "Un paiement existe déjà pour cette commande"
+            "Cette commande est déjà payée"
         );
 
     }
+
+
 
     const payment =
         await prisma.payment.create({
@@ -51,15 +73,103 @@ export async function createPayment(
 
                 orderId,
 
-                amount: order.totalAmount,
+                amount:
+                    order.totalAmount,
 
-                status: "PENDING"
+                status:
+                    "PENDING"
 
             }
 
         });
 
-    return payment;
+
+
+    let pawapayResponse;
+
+
+    try {
+
+
+        pawapayResponse =
+            await createDeposit({
+
+                depositId,
+
+                amount:
+                    payment.amount.toString(),
+
+                currency:
+                    "USD",
+
+                phoneNumber,
+
+                provider,
+
+                customerMessage:
+                    "Paiement A&T Market",
+
+                orderId
+
+            });
+
+
+    } catch (error: any) {
+
+
+        await prisma.payment.update({
+
+            where: {
+
+                id: payment.id
+
+            },
+
+            data: {
+
+                status: "FAILED"
+
+            }
+
+        });
+
+
+        throw new Error(
+
+            error.message ||
+            "Paiement PawaPay échoué"
+
+        );
+
+
+    }
+
+
+
+    const updatedPayment =
+        await prisma.payment.update({
+
+            where: {
+
+                id:
+                    payment.id
+
+            },
+
+
+            data: {
+
+                providerReference:
+                    pawapayResponse.depositId
+
+            }
+
+        });
+
+
+
+    return updatedPayment;
+
 
 }
 
@@ -143,5 +253,122 @@ export async function confirmPayment(
 
 
     return result;
+
+}
+
+export async function handlePawapayCallback(
+
+    depositId:string,
+
+    status:string
+
+) {
+
+
+    const payment =
+        await prisma.payment.findFirst({
+
+            where: {
+
+                providerReference:
+                    depositId
+
+            }
+
+        });
+
+
+    if(!payment){
+
+        throw new Error(
+            "Paiement PawaPay introuvable"
+        );
+
+    }
+
+
+
+    if(status !== "COMPLETED"){
+
+        await prisma.payment.update({
+
+            where:{
+
+                id:
+                    payment.id
+
+            },
+
+            data:{
+
+                status:"FAILED"
+
+            }
+
+        });
+
+
+        return payment;
+
+    }
+
+
+
+    const result =
+        await prisma.$transaction(
+
+            async(tx)=>{
+
+
+                const updatedPayment =
+                    await tx.payment.update({
+
+                        where:{
+
+                            id:
+                                payment.id
+
+                        },
+
+                        data:{
+
+                            status:"PAID"
+
+                        }
+
+                    });
+
+
+
+                await tx.order.update({
+
+                    where:{
+
+                        id:
+                            payment.orderId
+
+                    },
+
+                    data:{
+
+                        status:"PAID"
+
+                    }
+
+                });
+
+
+
+                return updatedPayment;
+
+
+            }
+
+        );
+
+
+
+    return result;
+
 
 }

@@ -1,143 +1,215 @@
 import { env } from "../config/env";
 
 import {
-  CreateDepositRequest
+    CreateDepositRequest,
+    CreateDepositResponse
 } from "../types/pawapay";
 
 
-export async function createDeposit(
+function normalizePhone(phone: string) {
 
-  data: CreateDepositRequest
+    return phone
+        .replace(/\D/g, "") // enlève espaces, +, tirets...
+        .replace(/^0/, "243"); // remplace le 0 initial par indicatif RDC
 
-) {
+}
 
+function normalizeProvider(provider:string){
 
-  try {
+    const providers: Record<string,string> = {
 
+        AIRTEL:"AIRTEL_COD",
 
-    const response = await fetch(
+        MTN:"MTN_MOMO_COD",
 
-      `${env.PAWAPAY_BASE_URL}/v2/deposits`,
+        ORANGE:"ORANGE_COD",
 
-      {
+        VODACOM:"VODACOM_MPESA"
 
-
-        method: "POST",
-
-
-        headers: {
-
-
-          Authorization:
-            `Bearer ${env.PAWAPAY_API_KEY}`,
+    };
 
 
-          "Content-Type":
-            "application/json"
+    const normalized =
+        providers[
+          provider.toUpperCase()
+        ];
 
 
-        },
+    if(!normalized){
 
-
-        body: JSON.stringify({
-
-
-          depositId:
-            data.depositId,
-
-
-          amount:
-            data.amount,
-
-
-          currency:
-            data.currency,
-
-
-          payer: {
-
-
-            type:
-              "MMO",
-
-
-            accountDetails: {
-
-
-              phoneNumber:
-                data.phoneNumber,
-
-
-              provider:
-                data.provider
-
-
-            }
-
-
-          },
-
-
-          customerMessage:
-            data.customerMessage ?? "AT MARKET",
-
-
-          metadata: [
-
-            {
-
-              orderId:
-                data.orderId
-
-            }
-
-          ]
-
-
-        })
-
-
-      }
-
-    );
-
-
-
-    if (!response.ok) {
-
-
-      const error =
-        await response.text();
-
-
-      throw new Error(error);
-
+        throw new Error(
+          "Provider Mobile Money non supporté"
+        );
 
     }
 
 
+    return normalized;
 
-    const result =
-      await response.json();
-
-
-
-    return result;
+}
 
 
+export async function createDeposit(
 
-  } catch(error:any) {
+    data: CreateDepositRequest
 
-
-    throw new Error(
-
-      error.message ||
-      "Erreur PawaPay"
-
-    );
+): Promise<CreateDepositResponse> {
 
 
-  }
+    const payload = {
 
+        depositId:
+            data.depositId,
+
+
+        amount:
+            data.amount,
+
+
+        currency:
+            data.currency,
+
+
+        payer: {
+
+            type:
+                "MMO",
+
+
+            accountDetails: {
+
+                phoneNumber:
+                     normalizePhone(data.phoneNumber),
+
+
+                provider:
+                   normalizeProvider(data.provider)
+
+            }
+
+        },
+
+
+        customerMessage:
+            (data.customerMessage ?? "Paiement AT Market")
+                .replace(/[^a-zA-Z0-9 ]/g, ""),
+
+
+        metadata: [
+
+            {
+
+                orderId:
+                    data.orderId
+
+            }
+
+        ]
+
+    };
+
+
+
+    try {
+
+
+        console.log(
+            "PAWAPAY URL:",
+            env.PAWAPAY_BASE_URL
+        );
+
+
+
+        // console.log(
+        //     "PAWAPAY PAYLOAD:",
+        //     payload
+        // );
+
+
+
+
+        const response = await fetch(
+
+            `${env.PAWAPAY_BASE_URL}/v2/deposits`,
+
+            {
+
+                method:"POST",
+
+
+                headers:{
+
+
+                    Authorization:
+                        `Bearer ${env.PAWAPAY_API_KEY}`,
+
+
+                    "Content-Type":
+                        "application/json"
+
+                },
+
+
+                body:
+                    JSON.stringify(payload)
+
+            }
+
+        );
+
+
+
+        const responseText =
+            await response.text();
+
+
+
+        console.log(
+            "PAWAPAY RESPONSE:",
+            responseText
+        );
+
+
+
+        if (!response.ok) {
+
+
+            throw new Error(
+
+                `PawaPay error: ${responseText}`
+
+            );
+
+        }
+
+
+
+        const result:
+            CreateDepositResponse =
+            JSON.parse(responseText);
+
+
+
+        return result;
+
+
+
+    } catch(error:any) {
+
+
+        console.error(
+            "PAWAPAY ERROR:",
+            error
+        );
+
+
+        throw new Error(
+
+            error.message ??
+            "Erreur communication PawaPay"
+
+        );
+
+    }
 
 }

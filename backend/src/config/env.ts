@@ -10,6 +10,10 @@ export const env = {
     process.env.PAWAPAY_BASE_URL!,
 
   PAWAPAY_DEPOSIT_CALLBACK_URL:
-    process.env.PAWAPAY_DEPOSIT_CALLBACK_URL!
+    process.env.PAWAPAY_DEPOSIT_CALLBACK_URL!,
+
+  PAWAPAY_WEBHOOK_SECRET:
+    process.env.PAWAPAY_WEBHOOK_SECRET!
 
 };
+
