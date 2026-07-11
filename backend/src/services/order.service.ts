@@ -7,7 +7,6 @@ export async function createOrderFromCart(
   userId: string
 ) {
 
-
   const cart =
     await prisma.cart.findUnique({
 
@@ -31,8 +30,6 @@ export async function createOrderFromCart(
 
     });
 
-
-
   if (!cart) {
 
     throw new Error(
@@ -40,8 +37,6 @@ export async function createOrderFromCart(
     );
 
   }
-
-
 
   if (cart.items.length === 0) {
 
@@ -51,23 +46,19 @@ export async function createOrderFromCart(
 
   }
 
-
-
-  const totalAmount =
+  const productsAmount =
     cart.items.reduce(
 
       (total, item) => {
-
 
         const sellingPrice =
           Number(item.product.price) +
           Number(item.product.margin);
 
-
-        return total +
-          sellingPrice *
-          item.quantity;
-
+        return (
+          total +
+          sellingPrice * item.quantity
+        );
 
       },
 
@@ -75,35 +66,35 @@ export async function createOrderFromCart(
 
     );
 
+  // Transport calculé plus tard
+  const shippingAmount = 0;
 
-
+  const totalAmount =
+    productsAmount +
+    shippingAmount;
 
   const order =
     await prisma.$transaction(
 
       async (tx) => {
 
-
         const createdOrder =
           await tx.order.create({
 
-
             data: {
-
 
               userId,
 
+              productsAmount,
+
+              shippingAmount,
 
               totalAmount,
-
 
               status:
                 "PENDING_PAYMENT",
 
-
-
               items: {
-
 
                 create:
 
@@ -111,56 +102,39 @@ export async function createOrderFromCart(
 
                   (item) => {
 
-
                     const basePrice =
                       Number(item.product.price);
-
-
 
                     const margin =
                       Number(item.product.margin);
 
-
-
                     const sellingPrice =
                       basePrice + margin;
 
-
-
                     return {
-
 
                       productId:
                         item.productId,
 
-
                       quantity:
                         item.quantity,
 
-
                       basePrice,
 
-
                       margin,
-
 
                       price:
                         sellingPrice
 
-
                     };
-
 
                   }
 
                 )
 
-
               }
 
-
             },
-
 
             include: {
 
@@ -168,29 +142,24 @@ export async function createOrderFromCart(
 
             }
 
-
           });
-
-
 
         await tx.cartItem.deleteMany({
 
           where: {
 
-            cartId: cart.id
+            cartId:
+              cart.id
 
           }
 
         });
 
-
-
         return createdOrder;
 
+      }
 
-      });
-
-
+    );
 
   return order;
 

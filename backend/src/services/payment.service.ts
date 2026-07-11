@@ -10,13 +10,13 @@ export async function createPayment(
 
     phoneNumber: string,
 
-    provider: string
+    provider: string,
+
+    paymentType: "PRODUCT" | "SHIPPING" | "FULL"
 
 ) {
 
-
     const depositId = randomUUID();
-
 
 
     const order =
@@ -31,7 +31,6 @@ export async function createPayment(
         });
 
 
-
     if (!order) {
 
         throw new Error(
@@ -41,29 +40,73 @@ export async function createPayment(
     }
 
 
-    const paidPayment =
+    const existingPayment =
         await prisma.payment.findFirst({
 
             where: {
 
                 orderId,
 
-                status: "PAID"
+                type: paymentType,
+
+                status: {
+
+                    in: ["PAID", "PENDING"]
+
+                }
 
             }
 
         });
 
 
-
-    if (paidPayment) {
+    if (existingPayment) {
 
         throw new Error(
-            "Cette commande est déjà payée"
+
+            `Le paiement ${paymentType} existe déjà`
+
         );
 
     }
 
+
+    let amount = 0;
+
+
+    switch (paymentType) {
+
+        case "PRODUCT":
+
+            amount =
+                Number(order.productsAmount);
+
+            break;
+
+
+        case "SHIPPING":
+
+            amount =
+                Number(order.shippingAmount);
+
+            break;
+
+
+        case "FULL":
+
+            amount =
+                Number(order.totalAmount);
+
+            break;
+
+
+        default:
+
+            throw new Error(
+                "Type de paiement invalide"
+            );
+
+    }
 
 
     const payment =
@@ -73,23 +116,21 @@ export async function createPayment(
 
                 orderId,
 
-                amount:
-                    order.totalAmount,
+                amount,
 
-                status:
-                    "PENDING"
+                type: paymentType,
+
+                status: "PENDING"
 
             }
 
         });
 
 
-
     let pawapayResponse;
 
 
     try {
-
 
         pawapayResponse =
             await createDeposit({
@@ -99,8 +140,7 @@ export async function createPayment(
                 amount:
                     payment.amount.toString(),
 
-                currency:
-                    "USD",
+                currency: "USD",
 
                 phoneNumber,
 
@@ -112,7 +152,6 @@ export async function createPayment(
                 orderId
 
             });
-
 
     } catch (error: any) {
 
@@ -141,9 +180,7 @@ export async function createPayment(
 
         );
 
-
     }
-
 
 
     const updatedPayment =
@@ -151,11 +188,9 @@ export async function createPayment(
 
             where: {
 
-                id:
-                    payment.id
+                id: payment.id
 
             },
-
 
             data: {
 
@@ -167,9 +202,7 @@ export async function createPayment(
         });
 
 
-
     return updatedPayment;
-
 
 }
 
@@ -179,37 +212,27 @@ export async function confirmPayment(
 
     const payment =
         await prisma.payment.findUnique({
-
             where: {
                 id: paymentId
             }
-
         });
 
-
     if (!payment) {
-
         throw new Error(
             "Paiement introuvable"
         );
-
     }
 
-
     if (payment.status === "PAID") {
-
         throw new Error(
             "Paiement déjà confirmé"
         );
-
     }
-
 
     const result =
         await prisma.$transaction(
 
             async (tx) => {
-
 
                 const updatedPayment =
                     await tx.payment.update({
@@ -219,66 +242,97 @@ export async function confirmPayment(
                         },
 
                         data: {
-
                             status: "PAID"
-
                         }
 
                     });
 
+                const paidPayments =
+                    await tx.payment.findMany({
+
+                        where: {
+                            orderId: payment.orderId,
+                            status: "PAID"
+                        }
+
+                    });
+
+                const hasFullPayment =
+                    paidPayments.some(
+                        p => p.type === "FULL"
+                    );
+
+                const hasProductPayment =
+                    paidPayments.some(
+                        p => p.type === "PRODUCT"
+                    );
+
+                const hasShippingPayment =
+                    paidPayments.some(
+                        p => p.type === "SHIPPING"
+                    );
+
+                let orderStatus: any =
+                    "PENDING_PAYMENT";
+
+                if (
+                    hasFullPayment ||
+                    (
+                        hasProductPayment &&
+                        hasShippingPayment
+                    )
+                ) {
+
+                    orderStatus = "PAID";
+
+                }
+
+                else if (
+                    hasProductPayment
+                ) {
+
+                    orderStatus =
+                        "PARTIALLY_PAID";
+
+                }
 
                 await tx.order.update({
 
                     where: {
-
                         id: payment.orderId
-
                     },
 
                     data: {
-
-                        status: "PAID"
-
+                        status: orderStatus
                     }
 
                 });
 
-
                 return updatedPayment;
-
 
             }
 
         );
-
 
     return result;
 
 }
 
 export async function handlePawapayCallback(
-
-    depositId:string,
-
-    status:string
-
+    depositId: string,
+    status: string
 ) {
-
 
     const payment =
         await prisma.payment.findFirst({
 
             where: {
-
-                providerReference:
-                    depositId
-
+                providerReference: depositId
             }
 
         });
 
-
-    if(!payment){
+    if (!payment) {
 
         throw new Error(
             "Paiement PawaPay introuvable"
@@ -286,89 +340,109 @@ export async function handlePawapayCallback(
 
     }
 
-
-
-    if(status !== "COMPLETED"){
+    if (status !== "COMPLETED") {
 
         await prisma.payment.update({
 
-            where:{
-
-                id:
-                    payment.id
-
+            where: {
+                id: payment.id
             },
 
-            data:{
-
-                status:"FAILED"
-
+            data: {
+                status: "FAILED"
             }
 
         });
-
 
         return payment;
 
     }
 
-
-
     const result =
         await prisma.$transaction(
 
-            async(tx)=>{
-
+            async (tx) => {
 
                 const updatedPayment =
                     await tx.payment.update({
 
-                        where:{
-
-                            id:
-                                payment.id
-
+                        where: {
+                            id: payment.id
                         },
 
-                        data:{
-
-                            status:"PAID"
-
+                        data: {
+                            status: "PAID"
                         }
 
                     });
 
+                const paidPayments =
+                    await tx.payment.findMany({
 
+                        where: {
+                            orderId: payment.orderId,
+                            status: "PAID"
+                        }
+
+                    });
+
+                const hasFullPayment =
+                    paidPayments.some(
+                        p => p.type === "FULL"
+                    );
+
+                const hasProductPayment =
+                    paidPayments.some(
+                        p => p.type === "PRODUCT"
+                    );
+
+                const hasShippingPayment =
+                    paidPayments.some(
+                        p => p.type === "SHIPPING"
+                    );
+
+                let orderStatus: any =
+                    "PENDING_PAYMENT";
+
+                if (
+                    hasFullPayment ||
+                    (
+                        hasProductPayment &&
+                        hasShippingPayment
+                    )
+                ) {
+
+                    orderStatus = "PAID";
+
+                }
+
+                else if (
+                    hasProductPayment
+                ) {
+
+                    orderStatus =
+                        "PARTIALLY_PAID";
+
+                }
 
                 await tx.order.update({
 
-                    where:{
-
-                        id:
-                            payment.orderId
-
+                    where: {
+                        id: payment.orderId
                     },
 
-                    data:{
-
-                        status:"PAID"
-
+                    data: {
+                        status: orderStatus
                     }
 
                 });
 
-
-
                 return updatedPayment;
-
 
             }
 
         );
 
-
-
     return result;
-
 
 }
