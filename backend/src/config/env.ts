@@ -13,7 +13,12 @@ export const env = {
     process.env.PAWAPAY_DEPOSIT_CALLBACK_URL!,
 
   PAWAPAY_WEBHOOK_SECRET:
-    process.env.PAWAPAY_WEBHOOK_SECRET!
+    process.env.PAWAPAY_WEBHOOK_SECRET!,
+
+  JWT_SECRET:
+    process.env.JWT_SECRET!,
+
+  JWT_EXPIRES_IN:
+    process.env.JWT_EXPIRES_IN!
 
 };
-
