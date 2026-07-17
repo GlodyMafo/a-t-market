@@ -2,13 +2,18 @@ import { Request, Response } from "express";
 
 import {
   register,
-  login
+  login,
+  getCurrentUser
 } from "../services/auth.service";
 
 import {
   registerSchema,
   loginSchema
 } from "../validators/auth.validator";
+
+import { AuthRequest }
+  from "../middlewares/auth.middleware";
+
 
 
 
@@ -93,6 +98,44 @@ export async function loginController(
 
       message:
         error.message
+
+    });
+
+  }
+
+}
+
+
+export async function meController(
+
+  req: AuthRequest,
+
+  res: Response
+
+) {
+
+  try {
+
+    const user =
+      await getCurrentUser(
+        req.user!.userId
+      );
+
+    return res.json({
+
+      success: true,
+
+      data: user
+
+    });
+
+  } catch (error: any) {
+
+    return res.status(404).json({
+
+      success: false,
+
+      message: error.message
 
     });
 

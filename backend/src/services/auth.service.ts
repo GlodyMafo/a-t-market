@@ -208,3 +208,43 @@ export async function login(
   };
 
 }
+
+
+export async function getCurrentUser(
+  userId: string
+) {
+
+  const user =
+    await prisma.user.findUnique({
+
+      where: {
+        id: userId
+      },
+
+      select: {
+
+        id: true,
+
+        email: true,
+
+        phone: true,
+
+        role: true,
+
+        createdAt: true
+
+      }
+
+    });
+
+  if (!user) {
+
+    throw new Error(
+      "Utilisateur introuvable"
+    );
+
+  }
+
+  return user;
+
+}
