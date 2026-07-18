@@ -1,26 +1,48 @@
 import { Request, Response } from "express";
 import { addToCart,  getCartByUser, updateCartItemQuantity,removeCartItem } from "../services/cart.service";
+import { AuthRequest } from "../middlewares/auth.middleware";
+
 
 export async function addToCartController(
-  req: Request,
+
+  req: AuthRequest,
+
   res: Response
+
 ) {
 
   try {
 
     const cartItem =
-      await addToCart(req.body);
+      await addToCart({
+
+        userId:
+          req.user!.userId,
+
+        productId:
+          req.body.productId,
+
+        quantity:
+          req.body.quantity
+
+      });
 
     return res.status(201).json({
+
       success: true,
+
       data: cartItem
+
     });
 
   } catch (error: any) {
 
     return res.status(400).json({
+
       success: false,
+
       message: error.message
+
     });
 
   }
@@ -30,30 +52,38 @@ export async function addToCartController(
 // Get cart by user
 
 export async function getCartController(
-  req: Request,
+
+  req: AuthRequest,
+
   res: Response
+
 ) {
 
   try {
 
-    const { userId } = req.params;
-
-
     const cart =
-      await getCartByUser(userId);
+      await getCartByUser(
 
+        req.user!.userId
+
+      );
 
     return res.json({
-      success: true,
-      data: cart
-    });
 
+      success: true,
+
+      data: cart
+
+    });
 
   } catch (error: any) {
 
     return res.status(404).json({
+
       success: false,
+
       message: error.message
+
     });
 
   }
@@ -63,8 +93,11 @@ export async function getCartController(
 // Update quantity
 
 export async function updateCartItemController(
-  req: Request,
+
+  req: AuthRequest,
+
   res: Response
+
 ) {
 
   try {
@@ -73,28 +106,34 @@ export async function updateCartItemController(
 
     const { quantity } = req.body;
 
-
     const item =
       await updateCartItemQuantity(
+
         id,
-        quantity
+
+        quantity,
+
+        req.user!.userId
+
       );
 
-
     return res.json({
-      success:true,
-      data:item
+
+      success: true,
+
+      data: item
+
     });
 
-
-  } catch(error:any) {
-
+  } catch (error: any) {
 
     return res.status(400).json({
-      success:false,
-      message:error.message
-    });
 
+      success: false,
+
+      message: error.message
+
+    });
 
   }
 
@@ -104,35 +143,44 @@ export async function updateCartItemController(
 //Delete cart 
 
 export async function removeCartItemController(
-  req: Request,
-  res: Response
-){
 
-  try{
+  req: AuthRequest,
+
+  res: Response
+
+) {
+
+  try {
 
     const { id } = req.params;
 
-
     const result =
-      await removeCartItem(id);
+      await removeCartItem(
 
+        id,
+
+        req.user!.userId
+
+      );
 
     return res.json({
-      success:true,
-      data:result
+
+      success: true,
+
+      data: result
+
     });
 
-
-  }catch(error:any){
-
+  } catch (error: any) {
 
     return res.status(400).json({
-      success:false,
-      message:error.message
-    });
 
+      success: false,
+
+      message: error.message
+
+    });
 
   }
 
 }
-

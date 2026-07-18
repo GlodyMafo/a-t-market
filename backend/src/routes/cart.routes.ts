@@ -1,26 +1,32 @@
 import { Router } from "express";
 import { addToCartController,  getCartController, updateCartItemController,  removeCartItemController } from "../controllers/cart.controller";
+import {authMiddleware} from "../middlewares/auth.middleware";
+
 
 const router = Router();
 
 router.post(
-  "/items",
+  "/",
+  authMiddleware,
   addToCartController
 );
 
 router.get(
- "/:userId",
- getCartController
+  "/me",
+  authMiddleware,
+  getCartController
 );
 
 router.patch(
- "/items/:id",
- updateCartItemController
+  "/item/:id",
+  authMiddleware,
+  updateCartItemController
 );
 
 router.delete(
- "/items/:id",
- removeCartItemController
+  "/item/:id",
+  authMiddleware,
+  removeCartItemController
 );
 
 export default router;
