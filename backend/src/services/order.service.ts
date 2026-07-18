@@ -98,39 +98,39 @@ export async function createOrderFromCart(
 
                 create:
 
-                cart.items.map(
+                  cart.items.map(
 
-                  (item) => {
+                    (item) => {
 
-                    const basePrice =
-                      Number(item.product.price);
+                      const basePrice =
+                        Number(item.product.price);
 
-                    const margin =
-                      Number(item.product.margin);
+                      const margin =
+                        Number(item.product.margin);
 
-                    const sellingPrice =
-                      basePrice + margin;
+                      const sellingPrice =
+                        basePrice + margin;
 
-                    return {
+                      return {
 
-                      productId:
-                        item.productId,
+                        productId:
+                          item.productId,
 
-                      quantity:
-                        item.quantity,
+                        quantity:
+                          item.quantity,
 
-                      basePrice,
+                        basePrice,
 
-                      margin,
+                        margin,
 
-                      price:
-                        sellingPrice
+                        price:
+                          sellingPrice
 
-                    };
+                      };
 
-                  }
+                    }
 
-                )
+                  )
 
               }
 
@@ -218,14 +218,19 @@ export async function getOrdersByUser(
 }
 
 export async function getOrderById(
-  id: string
+  id: string,
+  userId: string
 ) {
 
   const order =
-    await prisma.order.findUnique({
+    await prisma.order.findFirst({
 
       where: {
-        id
+
+        id,
+
+        userId
+
       },
 
       include: {
@@ -248,16 +253,14 @@ export async function getOrderById(
 
         },
 
-        payment: true,
+        payments: true,
 
         trackingEvents: true
 
       }
 
     });
-
-
-
+    
   if (!order) {
 
     throw new Error(

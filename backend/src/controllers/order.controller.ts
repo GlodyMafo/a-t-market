@@ -3,41 +3,37 @@ import { Request, Response } from "express";
 import {
   createOrderFromCart,
   getOrdersByUser,
-   getOrderById
+  getOrderById
 } from "../services/order.service";
 
+import { AuthRequest }
+  from "../middlewares/auth.middleware";
 
 // Create order
 
 export async function createOrderController(
-  req: Request,
+  req: AuthRequest,
   res: Response
 ) {
 
   try {
 
-    const {
-      userId
-    } = req.body;
-
-
     const order =
       await createOrderFromCart(
-        userId
-      );
 
+        req.user!.userId
+
+      );
 
     return res.status(201).json({
 
-      success:true,
+      success: true,
 
-      data:order
+      data: order
 
     });
 
-
   } catch(error:any){
-
 
     return res.status(400).json({
 
@@ -46,7 +42,6 @@ export async function createOrderController(
       message:error.message
 
     });
-
 
   }
 
@@ -57,29 +52,18 @@ export async function createOrderController(
 // Get user orders
 
 export async function getOrdersByUserController(
-
-  req: Request,
-
+  req: AuthRequest,
   res: Response
-
 ) {
-
 
   try {
 
-
-    const {
-      userId
-    } = req.params;
-
-
-
     const orders =
       await getOrdersByUser(
-        userId
+
+        req.user!.userId
+
       );
-
-
 
     return res.json({
 
@@ -89,11 +73,7 @@ export async function getOrdersByUserController(
 
     });
 
-
-
   } catch(error:any){
-
-
 
     return res.status(400).json({
 
@@ -103,31 +83,25 @@ export async function getOrdersByUserController(
 
     });
 
-
   }
-
 
 }
 
 export async function getOrderByIdController(
-
-  req: Request,
-
+  req: AuthRequest,
   res: Response
-
 ) {
 
   try {
 
-    const {
-      id
-    } = req.params;
-
-
     const order =
-      await getOrderById(id);
+      await getOrderById(
 
+        req.params.id,
 
+        req.user!.userId
+
+      );
 
     return res.json({
 
@@ -137,9 +111,7 @@ export async function getOrderByIdController(
 
     });
 
-
-  } catch(error:any) {
-
+  } catch(error:any){
 
     return res.status(404).json({
 
