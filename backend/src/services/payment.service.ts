@@ -3,16 +3,80 @@ import { randomUUID } from "crypto";
 import { createDeposit } from "./pawapay.service";
 
 
+async function decrementOrderInventory(
+    tx: any,
+    orderId: string
+) {
+
+    const order =
+        await tx.order.findUnique({
+
+            where: {
+                id: orderId
+            },
+
+            include: {
+                items: true
+            }
+
+        });
+
+    if (!order) {
+        return;
+    }
+
+    for (const item of order.items) {
+
+        const inventory =
+            await tx.inventory.findUnique({
+
+                where: {
+                    productId: item.productId
+                }
+
+            });
+
+        if (!inventory) {
+            continue;
+        }
+
+        const newQuantity =
+            inventory.quantity - item.quantity;
+
+        await tx.inventory.update({
+
+            where: {
+                productId: item.productId
+            },
+
+            data: {
+
+                quantity:
+                    Math.max(
+                        0,
+                        newQuantity
+                    )
+
+            }
+
+        });
+
+    }
+
+}
 
 export async function createPayment(
 
     orderId: string,
 
+    userId: string,
+
     phoneNumber: string,
 
     provider: string,
 
-    paymentType: "PRODUCT" | "SHIPPING" | "FULL"
+    paymentType:
+        "PRODUCT" | "SHIPPING" | "FULL"
 
 ) {
 
@@ -20,11 +84,13 @@ export async function createPayment(
 
 
     const order =
-        await prisma.order.findUnique({
+        await prisma.order.findFirst({
 
             where: {
 
-                id: orderId
+                id: orderId,
+
+                userId
 
             }
 
@@ -308,6 +374,11 @@ export async function confirmPayment(
 
                 });
 
+                await decrementOrderInventory(
+                    tx,
+                    payment.orderId
+                );
+
                 return updatedPayment;
 
             }
@@ -436,6 +507,12 @@ export async function handlePawapayCallback(
                     }
 
                 });
+                
+
+                await decrementOrderInventory(
+                    tx,
+                    payment.orderId
+                );
 
                 return updatedPayment;
 

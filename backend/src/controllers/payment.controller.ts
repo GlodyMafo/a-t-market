@@ -11,9 +11,12 @@ import {
 }
   from "../validators/payment.validator";
 
+import { AuthRequest }
+  from "../middlewares/auth.middleware";
+
 
 export async function createPaymentController(
-  req: Request,
+  req: AuthRequest,
   res: Response
 ) {
 
@@ -34,6 +37,7 @@ export async function createPaymentController(
     const payment =
       await createPayment(
         orderId,
+        req.user!.userId,
         phoneNumber,
         provider,
         paymentType

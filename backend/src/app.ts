@@ -7,8 +7,10 @@ import cartRoutes from "./routes/cart.routes";
 import orderRoutes from "./routes/order.routes";
 import paymentRoutes from "./routes/payment.routes";
 import authRoutes from "./routes/auth.routes";
-import { startPaymentReconciliationJob }
-from "./jobs/payment.reconciliation.job";
+import trackingRoutes from "./routes/tracking.routes";
+import adminRoutes from "./routes/admin.routes"
+
+import { startPaymentReconciliationJob } from "./jobs/payment.reconciliation.job";
 
 startPaymentReconciliationJob();
 
@@ -46,6 +48,16 @@ app.use(
 app.use(
   "/auth",
   authRoutes
+);
+
+app.use(
+  "/api/tracking",
+  trackingRoutes
+);
+
+app.use(
+  "/api/admin",
+  adminRoutes
 );
 
 export default app;

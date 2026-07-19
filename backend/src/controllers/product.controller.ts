@@ -5,34 +5,36 @@ import {
   getProductById
 } from "../services/product.service";
 
-export async function createProductController(
-  req: Request,
-  res: Response
-) {
-
-  try {
-
-    const product =
-      await createProduct(req.body);
 
 
-    return res.status(201).json({
-      success: true,
-      data: product
-    });
+// export async function createProductController(
+//   req: Request,
+//   res: Response
+// ) {
+
+//   try {
+
+//     const product =
+//       await createProduct(req.body);
 
 
-  } catch (error: any) {
+//     return res.status(201).json({
+//       success: true,
+//       data: product
+//     });
 
 
-    return res.status(400).json({
-      success: false,
-      message: error.message
-    });
+//   } catch (error: any) {
 
-  }
 
-}
+//     return res.status(400).json({
+//       success: false,
+//       message: error.message
+//     });
+
+//   }
+
+// }
 
 // Get all active products
 
