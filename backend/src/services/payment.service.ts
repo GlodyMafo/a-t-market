@@ -61,6 +61,25 @@ async function decrementOrderInventory(
 
         });
 
+        await tx.inventoryMovement.create({
+
+            data: {
+
+                productId:
+                    item.productId,
+
+                quantity:
+                    item.quantity,
+
+                type: "OUT",
+
+                reason:
+                    `Order ${orderId}`
+
+            }
+
+        });
+
     }
 
 }
@@ -507,7 +526,7 @@ export async function handlePawapayCallback(
                     }
 
                 });
-                
+
 
                 await decrementOrderInventory(
                     tx,

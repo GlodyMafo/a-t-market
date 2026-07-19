@@ -69,6 +69,11 @@ enum TrackingStatus {
   DELIVERED
 }
 
+enum InventoryMovementType {
+  IN
+  OUT
+}
+
 model User {
   id String @id @default(cuid())
 
@@ -121,6 +126,8 @@ model Product {
   cartItems CartItem[]
 
   orderItems OrderItem[]
+
+  movements InventoryMovement[]
 }
 
 model ProductImage {
@@ -311,4 +318,23 @@ model PaymentWebhookLog {
   error String?
 
   createdAt DateTime @default(now())
+}
+
+
+model InventoryMovement {
+
+  id String @id @default(cuid())
+
+  productId String
+
+  product Product @relation( fields:[productId], references:[id], onDelete: Cascade )
+
+  quantity Int
+
+  type InventoryMovementType
+
+  reason String?
+
+  createdAt DateTime @default(now())
+
 }
