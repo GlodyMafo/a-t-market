@@ -1,9 +1,10 @@
 import { Request, Response } from "express";
 
 import { addTrackingToOrder, getOrderDetails, getAllOrders, getAdminStats, getAllProductsAdmin, toggleProductStatus, updateProduct,  getInventory,
-  updateInventory } from "../services/admin.service";
+  updateInventory,  restockInventory } from "../services/admin.service";
 
 import { createProduct } from "../services/product.service";
+
 
 export async function getAllOrdersController(
     req: Request,
@@ -342,6 +343,51 @@ export async function updateInventoryController(
       await updateInventory(
         productId,
         quantity
+      );
+
+    return res.json({
+
+      success: true,
+
+      data: inventory
+
+    });
+
+  } catch (error: any) {
+
+    return res.status(400).json({
+
+      success: false,
+
+      message: error.message
+
+    });
+
+  }
+
+}
+
+
+export async function restockInventoryController(
+  req: Request,
+  res: Response
+) {
+
+  try {
+
+    const { productId } =
+      req.params;
+
+    const {
+      quantity,
+      reason
+    } = req.body;
+
+    const inventory =
+      await restockInventory(
+        productId,
+        quantity,
+        reason
       );
 
     return res.json({

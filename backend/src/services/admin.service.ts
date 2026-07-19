@@ -413,3 +413,80 @@ export async function updateInventory(
   });
 
 }
+
+export async function restockInventory(
+  productId: string,
+  quantity: number,
+  reason?: string
+) {
+
+  if (quantity <= 0) {
+
+    throw new Error(
+      "La quantité doit être supérieure à 0"
+    );
+
+  }
+
+  return prisma.$transaction(
+
+    async (tx) => {
+
+      const inventory =
+        await tx.inventory.findUnique({
+
+          where: {
+            productId
+          }
+
+        });
+
+      if (!inventory) {
+
+        throw new Error(
+          "Inventaire introuvable"
+        );
+
+      }
+
+      const updatedInventory =
+        await tx.inventory.update({
+
+          where: {
+            productId
+          },
+
+          data: {
+
+            quantity:
+              inventory.quantity + quantity
+
+          }
+
+        });
+
+      await tx.inventoryMovement.create({
+
+        data: {
+
+          productId,
+
+          quantity,
+
+          type: "IN",
+
+          reason:
+            reason ||
+            "Réapprovisionnement"
+
+        }
+
+      });
+
+      return updatedInventory;
+
+    }
+
+  );
+
+}
