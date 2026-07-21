@@ -10,6 +10,8 @@ import authRoutes from "./routes/auth.routes";
 import trackingRoutes from "./routes/tracking.routes";
 import adminRoutes from "./routes/admin.routes"
 
+import { initializeSettings} from "./services/settings.service";
+
 import { startPaymentReconciliationJob } from "./jobs/payment.reconciliation.job";
 
 startPaymentReconciliationJob();
@@ -59,5 +61,15 @@ app.use(
   "/api/admin",
   adminRoutes
 );
+
+initializeSettings()
+  .then(() => {
+
+    console.log(
+      "Global settings initialized"
+    );
+
+  })
+  .catch(console.error);
 
 export default app;

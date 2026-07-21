@@ -338,3 +338,20 @@ model InventoryMovement {
   createdAt DateTime @default(now())
 
 }
+
+
+model GlobalSettings {
+
+  id String @id @default(cuid())
+
+  commissionRate Decimal @db.Decimal(10,2)
+
+  chinaPricePerKg Decimal @db.Decimal(10,2)
+
+  fixedFee Decimal @db.Decimal(10,2)
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+}
