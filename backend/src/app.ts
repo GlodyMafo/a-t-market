@@ -10,6 +10,7 @@ import authRoutes from "./routes/auth.routes";
 import trackingRoutes from "./routes/tracking.routes";
 import adminRoutes from "./routes/admin.routes"
 import categoryRoutes from "./routes/category.routes";
+import subCategoryRoutes from "./routes/subcategory.routes";
 
 import { initializeSettings} from "./services/settings.service";
 
@@ -66,6 +67,11 @@ app.use(
 app.use(
   "/api/categories",
   categoryRoutes
+);
+
+app.use(
+  "/api/subcategories",
+  subCategoryRoutes
 );
 
 initializeSettings()
