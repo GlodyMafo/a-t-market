@@ -132,6 +132,10 @@ model Product {
   categoryId String?
 
   category Category?@relation(fields: [categoryId],references: [id])
+
+  subCategoryId String?
+
+  subCategory SubCategory?@relation(fields: [subCategoryId],references: [id])
 }
 
 model ProductImage {
@@ -373,7 +377,7 @@ model Category {
   isActive Boolean @default(true)
 
   products Product[]
-  
+
   subCategories SubCategory[]
 
   createdAt DateTime @default(now())
@@ -397,6 +401,8 @@ model SubCategory {
   categoryId String
 
   category Category@relation(fields: [categoryId],references: [id])
+
+  products Product[]
 
   createdAt DateTime @default(now())
 
