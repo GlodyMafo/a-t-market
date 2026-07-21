@@ -9,6 +9,7 @@ import paymentRoutes from "./routes/payment.routes";
 import authRoutes from "./routes/auth.routes";
 import trackingRoutes from "./routes/tracking.routes";
 import adminRoutes from "./routes/admin.routes"
+import categoryRoutes from "./routes/category.routes";
 
 import { initializeSettings} from "./services/settings.service";
 
@@ -60,6 +61,11 @@ app.use(
 app.use(
   "/api/admin",
   adminRoutes
+);
+
+app.use(
+  "/api/categories",
+  categoryRoutes
 );
 
 initializeSettings()

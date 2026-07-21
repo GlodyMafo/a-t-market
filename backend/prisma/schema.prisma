@@ -373,6 +373,30 @@ model Category {
   isActive Boolean @default(true)
 
   products Product[]
+  
+  subCategories SubCategory[]
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+}
+
+model SubCategory {
+
+  id String @id @default(cuid())
+
+  name String
+
+  slug String @unique
+
+  description String?
+
+  isActive Boolean @default(true)
+
+  categoryId String
+
+  category Category@relation(fields: [categoryId],references: [id])
 
   createdAt DateTime @default(now())
 
