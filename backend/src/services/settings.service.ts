@@ -24,3 +24,53 @@ export async function initializeSettings() {
   });
 
 }
+
+
+export async function getSettings() {
+
+  const settings =
+    await prisma.globalSettings.findFirst();
+
+  if (!settings) {
+
+    throw new Error(
+      "Configuration introuvable"
+    );
+
+  }
+
+  return settings;
+
+}
+
+
+export async function updateSettings(
+  data: {
+    commissionRate?: number;
+    chinaPricePerKg?: number;
+    fixedFee?: number;
+  }
+) {
+
+  const settings =
+    await prisma.globalSettings.findFirst();
+
+  if (!settings) {
+
+    throw new Error(
+      "Configuration introuvable"
+    );
+
+  }
+
+  return prisma.globalSettings.update({
+
+    where: {
+      id: settings.id
+    },
+
+    data
+
+  });
+
+}

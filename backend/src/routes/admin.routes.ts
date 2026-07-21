@@ -2,7 +2,7 @@ import { Router } from "express";
 
 import {
   getAllOrdersController, getOrderDetailsController, createProductAdminController, addTrackingEventController, getAdminStatsController, getAllProductsAdminController, toggleProductStatusController, updateProductController,
-  getInventoryController,  updateInventoryController,  restockInventoryController} from "../controllers/admin.controller";
+  getInventoryController,  updateInventoryController,  restockInventoryController,  getSettingsController, updateSettingsController} from "../controllers/admin.controller";
 
 const router = Router();
 
@@ -59,6 +59,16 @@ router.patch(
 router.post(
   "/inventory/restock/:productId",
   restockInventoryController
+);
+
+router.get(
+  "/settings",
+  getSettingsController
+);
+
+router.patch(
+  "/settings",
+  updateSettingsController
 );
 
 export default router;

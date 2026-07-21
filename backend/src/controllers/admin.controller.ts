@@ -3,6 +3,8 @@ import { Request, Response } from "express";
 import { addTrackingToOrder, getOrderDetails, getAllOrders, getAdminStats, getAllProductsAdmin, toggleProductStatus, updateProduct,  getInventory,
   updateInventory,  restockInventory } from "../services/admin.service";
 
+  import { getSettings, updateSettings} from "../services/settings.service";
+
 import { createProduct } from "../services/product.service";
 
 
@@ -395,6 +397,74 @@ export async function restockInventoryController(
       success: true,
 
       data: inventory
+
+    });
+
+  } catch (error: any) {
+
+    return res.status(400).json({
+
+      success: false,
+
+      message: error.message
+
+    });
+
+  }
+
+}
+
+
+export async function getSettingsController(
+  req: Request,
+  res: Response
+) {
+
+  try {
+
+    const settings =
+      await getSettings();
+
+    return res.json({
+
+      success: true,
+
+      data: settings
+
+    });
+
+  } catch (error: any) {
+
+    return res.status(400).json({
+
+      success: false,
+
+      message: error.message
+
+    });
+
+  }
+
+}
+
+
+export async function updateSettingsController(
+  req: Request,
+  res: Response
+) {
+
+  try {
+
+    const settings =
+      await updateSettings(
+        req.body
+      );
+
+    return res.json({
+
+      success: true,
+
+      data: settings
 
     });
 
