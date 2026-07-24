@@ -8,10 +8,16 @@ import {
 
 } from "../controllers/subcategory.controller";
 
+
+import { authMiddleware } from "../middlewares/auth.middleware";
+import { adminMiddleware } from "../middlewares/admin.middleware";
+
 const router = Router();
 
 router.post(
   "/",
+  authMiddleware,
+  adminMiddleware,
   createSubCategoryController
 );
 
