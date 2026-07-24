@@ -74,6 +74,13 @@ enum InventoryMovementType {
   OUT
 }
 
+enum QuoteStatus {
+  AUTO_APPROVED
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+}
+
 model User {
   id String @id @default(cuid())
 
@@ -272,6 +279,7 @@ model TrackingEvent {
   createdAt DateTime @default(now())
 }
 
+
 model InternationalQuote {
   id String @id @default(cuid())
 
@@ -291,10 +299,21 @@ model InternationalQuote {
 
   commissionCost Decimal @db.Decimal(10, 2)
 
+  productWeight Decimal? @db.Decimal(10,2)
+
+  subCategoryId String?
+
+  subCategory SubCategory?@relation(fields: [subCategoryId],references: [id])
+
+  status QuoteStatus @default(PENDING_REVIEW)
+
+  adminNotes String?
+
   totalPrice Decimal @db.Decimal(10, 2)
 
   createdAt DateTime @default(now())
 }
+
 
 model Setting {
   id String @id @default(cuid())
@@ -403,6 +422,29 @@ model SubCategory {
   category Category@relation(fields: [categoryId],references: [id])
 
   products Product[]
+
+  quotes InternationalQuote[]
+
+  weightCatalog WeightCatalog?
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+}
+
+
+model WeightCatalog {
+
+  id String @id @default(cuid())
+
+  subCategoryId String @unique
+
+  subCategory SubCategory@relation(fields: [subCategoryId],references: [id])
+
+  estimatedWeightKg Decimal@db.Decimal(10,2)
+
+  notes String?
 
   createdAt DateTime @default(now())
 

@@ -11,6 +11,9 @@ import trackingRoutes from "./routes/tracking.routes";
 import adminRoutes from "./routes/admin.routes"
 import categoryRoutes from "./routes/category.routes";
 import subCategoryRoutes from "./routes/subcategory.routes";
+import weightCatalogRoutes from "./routes/weightCatalog.routes";
+import internationalQuoteRoutes from "./routes/internationalQuote.routes";
+import internationalQuoteAdminRoutes from "./routes/internationalQuote.admin.routes";
 
 import { initializeSettings} from "./services/settings.service";
 
@@ -73,6 +76,23 @@ app.use(
   "/api/subcategories",
   subCategoryRoutes
 );
+
+app.use(
+  "/api/weight-catalog",
+  weightCatalogRoutes
+);
+
+app.use(
+  "/api/international-quotes",
+  internationalQuoteRoutes
+);
+
+app.use(
+  "/api/admin/quotes",
+  internationalQuoteAdminRoutes
+);
+
+
 
 initializeSettings()
   .then(() => {

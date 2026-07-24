@@ -1,14 +1,16 @@
 import { prisma } from "../lib/prisma";
+import slugify from "slugify";
 
 interface CreateProductData {
+
   name: string;
-  slug: string;
   description?: string;
   price: number;
   margin: number;
   images: string[];
-}
+  subCategoryId: string;
 
+}
 
 // Create a product
 
@@ -16,18 +18,40 @@ export async function createProduct(data: CreateProductData) {
 
   const {
     name,
-    slug,
     description,
     price,
     margin,
-    images
+    images,
+    subCategoryId
   } = data;
+
+  const slug = slugify(name, {
+    lower: true,
+    strict: true
+  });
 
 
   if (images.length > 3) {
     throw new Error(
       "Maximum 3 images par produit"
     );
+  }
+
+  const subCategory =
+    await prisma.subCategory.findUnique({
+
+      where: {
+        id: subCategoryId
+      }
+
+    });
+
+  if (!subCategory) {
+
+    throw new Error(
+      "Sous-catégorie introuvable"
+    );
+
   }
 
 
@@ -45,6 +69,7 @@ export async function createProduct(data: CreateProductData) {
             margin,
             currency: "USD",
             type: "LOCAL",
+            subCategoryId,
 
             images: {
               create: images.map(
@@ -68,6 +93,8 @@ export async function createProduct(data: CreateProductData) {
             images: true,
             inventory: true
           }
+
+
         });
 
 
@@ -91,8 +118,21 @@ export async function getProducts() {
     },
 
     include: {
+
       images: true,
-      inventory: true
+
+      inventory: true,
+
+      subCategory: {
+
+        include: {
+
+          category: true
+
+        }
+
+      }
+
     },
 
     orderBy: {
@@ -114,8 +154,21 @@ export async function getProductById(id: string) {
     },
 
     include: {
+
       images: true,
-      inventory: true
+
+      inventory: true,
+
+      subCategory: {
+
+        include: {
+
+          category: true
+
+        }
+
+      }
+
     }
   });
 

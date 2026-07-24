@@ -1,6 +1,6 @@
 import { Router } from "express";
 import 
-{ createProductController,  
+{
   getProductsController ,
   getProductByIdController} 
   from "../controllers/product.controller";
