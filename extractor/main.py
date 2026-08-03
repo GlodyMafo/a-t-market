@@ -1,31 +1,29 @@
 from fastapi import FastAPI
-from pydantic import BaseModel
+from starlette.concurrency import run_in_threadpool
+
+from services.extractor_router import extract_product
+from schemas.request import ExtractRequest
 
 app = FastAPI()
 
 
-class ExtractRequest(BaseModel):
-    url: str
-
-
 @app.get("/")
 def root():
-
     return {
-        "service": "A&T Extractor",
+        "service": "A&T Market Extractor",
         "status": "running"
     }
 
 
 @app.post("/extract")
-def extract_product(data: ExtractRequest):
+async def extract(payload:ExtractRequest ):
+
+    result = await run_in_threadpool(
+        extract_product,
+        payload.url
+    )
 
     return {
         "success": True,
-        "name": "Produit Test",
-        "image": "https://image.test/product.jpg",
-        "price": 25,
-        "currency": "USD",
-        "source": "mock",
-        "url": data.url
+        "data": result
     }
