@@ -1,3 +1,5 @@
+from playwright.sync_api import Page
+
 from services.browser import BrowserService
 
 
@@ -5,36 +7,90 @@ class PlaywrightService:
 
     def __init__(self):
 
-        self.browser_service = BrowserService()
+        self.browser = BrowserService()
 
-        self.page = None
+        self.page: Page | None = None
 
     def open(
+
         self,
+
         url: str,
-        timeout: int = 60000
-    ):
 
-        self.browser_service.start()
+        timeout: int = 90000,
 
-        self.page = (
-            self.browser_service
-            .new_page()
-        )
+        wait_until: str = "domcontentloaded",
+
+    ) -> Page:
+
+        self.browser.start()
+
+        self.page = self.browser.new_page()
 
         self.page.goto(
+
             url,
-            wait_until="domcontentloaded",
-            timeout=timeout
+
+            timeout=timeout,
+
+            wait_until=wait_until,
+
         )
 
-        self.page.wait_for_timeout(3000)
-
         return self.page
 
-    def get_page(self):
-        return self.page
+    def wait(
+
+        self,
+
+        milliseconds: int = 2000,
+
+    ):
+
+        if self.page:
+
+            self.page.wait_for_timeout(milliseconds)
+
+    def locator(
+
+        self,
+
+        selector: str,
+
+    ):
+
+        return self.page.locator(selector)
+
+    def title(self):
+
+        return self.page.title()
+
+    def html(self):
+
+        return self.page.content()
+
+    def url(self):
+
+        return self.page.url
+
+    def screenshot(
+
+        self,
+
+        path: str,
+
+    ):
+
+        if self.page:
+
+            self.page.screenshot(
+
+                path=path,
+
+                full_page=True,
+
+            )
 
     def close(self):
 
-        self.browser_service.stop()
+        self.browser.stop()
