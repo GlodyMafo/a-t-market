@@ -1,7 +1,7 @@
 import { Router } from "express";
 
 import {
-  getTrackingController, addTrackingEventController
+  getTrackingController
 }
 from "../controllers/tracking.controller";
 
@@ -18,9 +18,5 @@ router.get(
   getTrackingController
 );
 
-router.post(
-  "/order/:orderId",
-  addTrackingEventController
-);
 
 export default router;
