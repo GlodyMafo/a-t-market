@@ -81,6 +81,11 @@ enum QuoteStatus {
   REJECTED
 }
 
+enum VariantSource {
+  LOCAL
+  EXTERNAL
+}
+
 model User {
   id String @id @default(cuid())
 
@@ -126,6 +131,8 @@ model Product {
 
   images ProductImage[]
 
+  variants ProductVariant[]
+
   createdAt DateTime @default(now())
 
   updatedAt DateTime @updatedAt
@@ -143,6 +150,32 @@ model Product {
   subCategoryId String?
 
   subCategory SubCategory?@relation(fields: [subCategoryId],references: [id])
+}
+
+
+model ProductVariant {
+  id String @id @default(cuid())
+
+  productId String
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  size String?
+
+  color String?
+
+  sku String?
+
+  externalId String?
+
+  source VariantSource @default(LOCAL)
+
+  isAvailable Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([productId])
+  @@index([externalId])
 }
 
 model ProductImage {
