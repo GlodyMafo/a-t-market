@@ -145,19 +145,18 @@ model Product {
 
   categoryId String?
 
-  category Category?@relation(fields: [categoryId],references: [id])
+  category Category? @relation(fields: [categoryId], references: [id])
 
   subCategoryId String?
 
-  subCategory SubCategory?@relation(fields: [subCategoryId],references: [id])
+  subCategory SubCategory? @relation(fields: [subCategoryId], references: [id])
 }
-
 
 model ProductVariant {
   id String @id @default(cuid())
 
   productId String
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   size String?
 
@@ -312,7 +311,6 @@ model TrackingEvent {
   createdAt DateTime @default(now())
 }
 
-
 model InternationalQuote {
   id String @id @default(cuid())
 
@@ -332,11 +330,11 @@ model InternationalQuote {
 
   commissionCost Decimal @db.Decimal(10, 2)
 
-  productWeight Decimal? @db.Decimal(10,2)
+  productWeight Decimal? @db.Decimal(10, 2)
 
   subCategoryId String?
 
-  subCategory SubCategory?@relation(fields: [subCategoryId],references: [id])
+  subCategory SubCategory? @relation(fields: [subCategoryId], references: [id])
 
   status QuoteStatus @default(PENDING_REVIEW)
 
@@ -346,7 +344,6 @@ model InternationalQuote {
 
   createdAt DateTime @default(now())
 }
-
 
 model Setting {
   id String @id @default(cuid())
@@ -380,14 +377,12 @@ model PaymentWebhookLog {
   createdAt DateTime @default(now())
 }
 
-
 model InventoryMovement {
-
   id String @id @default(cuid())
 
   productId String
 
-  product Product @relation( fields:[productId], references:[id], onDelete: Cascade )
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   quantity Int
 
@@ -396,28 +391,23 @@ model InventoryMovement {
   reason String?
 
   createdAt DateTime @default(now())
-
 }
 
-
 model GlobalSettings {
-
   id String @id @default(cuid())
 
-  commissionRate Decimal @db.Decimal(10,2)
+  commissionRate Decimal @db.Decimal(10, 2)
 
-  chinaPricePerKg Decimal @db.Decimal(10,2)
+  chinaPricePerKg Decimal @db.Decimal(10, 2)
 
-  fixedFee Decimal @db.Decimal(10,2)
+  fixedFee Decimal @db.Decimal(10, 2)
 
   createdAt DateTime @default(now())
 
   updatedAt DateTime @updatedAt
-
 }
 
 model Category {
-
   id String @id @default(cuid())
 
   name String @unique
@@ -435,11 +425,9 @@ model Category {
   createdAt DateTime @default(now())
 
   updatedAt DateTime @updatedAt
-
 }
 
 model SubCategory {
-
   id String @id @default(cuid())
 
   name String
@@ -452,7 +440,7 @@ model SubCategory {
 
   categoryId String
 
-  category Category@relation(fields: [categoryId],references: [id])
+  category Category @relation(fields: [categoryId], references: [id])
 
   products Product[]
 
@@ -463,24 +451,20 @@ model SubCategory {
   createdAt DateTime @default(now())
 
   updatedAt DateTime @updatedAt
-
 }
 
-
 model WeightCatalog {
-
   id String @id @default(cuid())
 
   subCategoryId String @unique
 
-  subCategory SubCategory@relation(fields: [subCategoryId],references: [id])
+  subCategory SubCategory @relation(fields: [subCategoryId], references: [id])
 
-  estimatedWeightKg Decimal@db.Decimal(10,2)
+  estimatedWeightKg Decimal @db.Decimal(10, 2)
 
   notes String?
 
   createdAt DateTime @default(now())
 
   updatedAt DateTime @updatedAt
-
 }
