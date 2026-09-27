@@ -14,6 +14,7 @@ import subCategoryRoutes from "./routes/subcategory.routes";
 import weightCatalogRoutes from "./routes/weightCatalog.routes";
 import internationalQuoteRoutes from "./routes/internationalQuote.routes";
 import internationalQuoteAdminRoutes from "./routes/internationalQuote.admin.routes";
+import externalProductRoutes from "./routes/externalProduct.routes";
 
 import { initializeSettings} from "./services/settings.service";
 
@@ -90,6 +91,11 @@ app.use(
 app.use(
   "/api/admin/quotes",
   internationalQuoteAdminRoutes
+);
+
+app.use(
+  "/api/external-products",
+  externalProductRoutes
 );
 
 

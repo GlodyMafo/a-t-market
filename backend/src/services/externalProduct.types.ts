@@ -1,321 +1,352 @@
 /*
-
-* =====================================================
-* SOURCES DE PRODUITS EXTERNES
-* =====================================================
-  */
+ * =====================================================
+ * SOURCES DE PRODUITS EXTERNES
+ * =====================================================
+ */
 
 export type ExternalProductSource =
-| "SHEIN"
-| "AMAZON"
-| "ALIBABA"
-| "PINDUODUO";
+  | "SHEIN"
+  | "AMAZON"
+  | "ALIBABA"
+  | "PINDUODUO";
 
 /*
-
-* =====================================================
-* TAILLES
-* =====================================================
-*
-* Exemple :
-*
-* {
-* name: "M",
-* available: true
-* }
-  */
+ * =====================================================
+ * TAILLES
+ * =====================================================
+ */
 
 export interface ExternalProductSize {
-name: string;
-available: boolean;
+  name: string;
+  available: boolean;
 }
 
 /*
-
-* =====================================================
-* COULEURS
-* =====================================================
-  */
+ * =====================================================
+ * COULEURS
+ * =====================================================
+ */
 
 export interface ExternalProductColor {
-name: string;
-imageUrl?: string;
+  name: string;
+  imageUrl?: string;
 }
 
 /*
+ * =====================================================
+ * DÉTAIL D'UNE TAILLE
+ * =====================================================
+ *
+ * Données provenant notamment d'Omkar :
+ *
+ * - taille
+ * - SKU
+ * - stock
+ * - disponibilité
+ * - prix
+ */
 
-* =====================================================
-* CONVERSIONS DE TAILLES
-* =====================================================
-*
-* Exemple :
-*
-* M
-* ├── FR : 38
-* ├── EU : 38
-* ├── US : 6
-* └── UK : 10
-  */
+export interface ExternalProductSizeDetail {
+  size: string;
+  sku?: string;
+  stock?: number;
+  inStock: boolean;
+  price?: number;
+  currency?: string;
+}
+
+/*
+ * =====================================================
+ * VARIANTES
+ * =====================================================
+ *
+ * Exemple :
+ *
+ * Taille M
+ * └── SKU
+ * └── Stock
+ *
+ * Une variante peut également contenir
+ * plusieurs attributs.
+ */
+
+export interface ExternalProductVariantAttribute {
+  name: string;
+  value: string;
+}
+
+export interface ExternalProductVariant {
+  sku: string;
+
+  attributes: ExternalProductVariantAttribute[];
+
+  price?: number;
+
+  currency?: string;
+
+  stock?: number;
+
+  inStock: boolean;
+
+  quickShip?: boolean;
+}
+
+/*
+ * =====================================================
+ * CONVERSIONS DE TAILLES
+ * =====================================================
+ */
 
 export interface ExternalProductSizeConversion {
-size: string;
+  size: string;
 
-conversions: Record<
-string,
-string
-
-> ;
- }
+  conversions: Record<string, string>;
+}
 
 /*
-
-* =====================================================
-* MESURES D'UNE TAILLE
-* =====================================================
-*
-* Exemple :
-*
-* {
-* size: "M",
-* cm: {
-* ```
-  Bust: "112",
-  ```
-* ```
-  Length: "59"
-  ```
-* },
-* inch: {
-* ```
-  Bust: "44.1",
-  ```
-* ```
-  Length: "23.2"
-  ```
-* }
-* }
-  */
+ * =====================================================
+ * MESURES D'UNE TAILLE
+ * =====================================================
+ */
 
 export interface ExternalProductSizeMeasurement {
-size: string;
+  size: string;
 
-cm?: Record<
-string,
-string
+  cm?: Record<string, string>;
 
-> ;
-
-inch?: Record<
-string,
-string
-
-> ;
- }
+  inch?: Record<string, string>;
+}
 
 /*
-
-* =====================================================
-* PARTIE DU SIZE CHART
-* =====================================================
-  */
+ * =====================================================
+ * PARTIE DU SIZE CHART
+ * =====================================================
+ */
 
 export interface ExternalProductSizeChartPart {
-part: string | null;
+  part: string | null;
 
-measurements: string[];
+  measurements: string[];
 
-sizes: ExternalProductSizeMeasurement[];
+  sizes: ExternalProductSizeMeasurement[];
 }
 
 /*
-
-* =====================================================
-* SIZE CHART
-* =====================================================
-  */
+ * =====================================================
+ * SIZE CHART
+ * =====================================================
+ */
 
 export interface ExternalProductSizeChart {
-parts: ExternalProductSizeChartPart[];
+  parts: ExternalProductSizeChartPart[];
 
-guideImage?: string;
+  guideImage?: string;
 }
 
 /*
+ * =====================================================
+ * SIZE GUIDE OMKAR
+ * =====================================================
+ *
+ * Exemple :
+ *
+ * Size M
+ * ├── Bust: 82 cm
+ * └── Length: 34 cm
+ */
 
-* =====================================================
-* FIT / RECOMMANDATIONS
-* =====================================================
-  */
+export interface ExternalProductSizeGuideMeasurement {
+  size: string;
+
+  measurements: Record<string, string>;
+}
+
+export interface ExternalProductSizeGuide {
+  url?: string;
+
+  measurements: ExternalProductSizeGuideMeasurement[];
+}
+
+/*
+ * =====================================================
+ * FIT / RECOMMANDATIONS
+ * =====================================================
+ */
 
 export interface ExternalProductFitReviewer {
-height_cm?: string;
-weight_kg?: string;
-bust_cm?: string;
-waist_cm?: string;
-hips_cm?: string;
+  height_cm?: string;
+
+  weight_kg?: string;
+
+  bust_cm?: string;
+
+  waist_cm?: string;
+
+  hips_cm?: string;
 }
 
 export interface ExternalProductSizeRecommendation {
-size: string;
+  size: string;
 
-reviewers: ExternalProductFitReviewer[];
+  reviewers: ExternalProductFitReviewer[];
 }
 
 export interface ExternalProductFit {
-overall?: {
-true_size?: string;
-large?: string;
-small?: string;
-};
+  overall?: {
+    true_size?: string;
 
-sizeRecommendations: ExternalProductSizeRecommendation[];
+    large?: string;
+
+    small?: string;
+  };
+
+  sizeRecommendations: ExternalProductSizeRecommendation[];
 }
 
 /*
-
-* =====================================================
-* ATTRIBUTS
-* =====================================================
-*
-* Exemple :
-*
-* {
-* name: "Material",
-* value: "Knitwear"
-* }
-  */
+ * =====================================================
+ * ATTRIBUTS
+ * =====================================================
+ */
 
 export interface ExternalProductAttribute {
-name: string;
-value: string;
+  name: string;
+
+  value: string;
 }
 
 /*
-
-* =====================================================
-* PRODUIT NORMALISÉ
-* =====================================================
-*
-* C'est le contrat principal utilisé par A&T Market.
-*
-* IMPORTANT :
-*
-* Le prix et la devise appartiennent au produit
-* normalisé final.
-*
-* Pour SHEIN, ces valeurs viendront de Native Emblem.
-  */
+ * =====================================================
+ * PRODUIT NORMALISÉ
+ * =====================================================
+ *
+ * C'est le contrat principal utilisé par A&T Market.
+ *
+ * IMPORTANT :
+ *
+ * Pour SHEIN :
+ *
+ * Native Emblem = source de vérité pour :
+ * - prix
+ * - devise
+ * - goodsId
+ * - informations principales
+ *
+ * Omkar = enrichissement :
+ * - couleurs
+ * - tailles
+ * - variantes
+ * - SKU
+ * - stock
+ * - size guide
+ */
 
 export interface NormalizedExternalProduct {
+  /*
+   * Fournisseur
+   */
 
-/*
+  source: ExternalProductSource;
 
-* Fournisseur
-  */
+  /*
+   * Identifiant du produit chez le fournisseur
+   */
 
-source: ExternalProductSource;
+  externalId?: string;
 
-/*
+  /*
+   * URL du produit
+   */
 
-* Identifiant du produit chez le fournisseur
-  */
+  url: string;
 
-externalId?: string;
+  /*
+   * Informations principales
+   */
 
-/*
+  name: string;
 
-* URL du produit
-  */
+  description?: string;
 
-url: string;
+  category?: string;
 
-/*
+  /*
+   * PRIX
+   *
+   * Pour SHEIN :
+   * Native Emblem → prix
+   */
 
-* Informations principales
-  */
+  price: number;
 
-name: string;
+  currency: string;
 
-description?: string;
+  /*
+   * IMAGES
+   */
 
-category?: string;
+  images: string[];
 
-/*
+  /*
+   * TAILLES
+   */
 
-* PRIX
-*
-* Pour SHEIN :
-* Native Emblem → prix
-  */
+  sizes: ExternalProductSize[];
 
-price: number;
+  sizeDetails?: ExternalProductSizeDetail[];
 
-currency: string;
+  sizeConversions?: ExternalProductSizeConversion[];
 
-/*
+  sizeChart?: ExternalProductSizeChart;
 
-* IMAGES
-  */
+  sizeGuide?: ExternalProductSizeGuide;
 
-images: string[];
+  /*
+   * COULEURS
+   */
 
-/*
+  colors: ExternalProductColor[];
 
-* TAILLES
-  */
+  /*
+   * VARIANTES
+   */
 
-sizes: ExternalProductSize[];
+  variants?: ExternalProductVariant[];
 
-sizeConversions?: ExternalProductSizeConversion[];
+  /*
+   * FIT
+   */
 
-sizeChart?: ExternalProductSizeChart;
+  fit?: ExternalProductFit;
 
-/*
+  /*
+   * ATTRIBUTS
+   */
 
-* COULEURS
-  */
+  attributes?: ExternalProductAttribute[];
 
-colors: ExternalProductColor[];
+  /*
+   * DISPONIBILITÉ
+   */
 
-/*
+  inStock: boolean;
 
-* FIT
-  */
+  /*
+   * INFORMATIONS OPTIONNELLES
+   */
 
-fit?: ExternalProductFit;
+  weightKg?: number;
 
-/*
+  rating?: number;
 
-* ATTRIBUTS
-  */
+  reviewsCount?: number;
 
-attributes?: ExternalProductAttribute[];
+  /*
+   * DONNÉES BRUTES
+   *
+   * Utile pour conserver les données originales
+   * retournées par les Actors.
+   */
 
-/*
-
-* DISPONIBILITÉ
-  */
-
-inStock: boolean;
-
-/*
-
-* INFORMATIONS OPTIONNELLES
-  */
-
-weightKg?: number;
-
-rating?: number;
-
-reviewsCount?: number;
-
-/*
-
-* DONNÉES BRUTES
-*
-* Utile pour conserver les données originales
-* retournées par les Actors.
-  */
-
-raw?: unknown;
+  raw?: unknown;
 }

@@ -3,11 +3,7 @@ import { ApifyClient } from "apify-client";
 export class SheinProductService {
   private client: ApifyClient;
 
-  /**
-   * ID de l'Actor Apify :
-   * SHEIN Product Scraper
-   */
-  private readonly actorId = "P5fALt8vY7xXgJh56";
+  private readonly actorId = "jizSZlSo9FeenLkFE";
 
   constructor() {
     const token = process.env.APIFY_API_TOKEN;
@@ -23,84 +19,55 @@ export class SheinProductService {
     });
   }
 
-  /**
-   * Recherche les détails d'un produit SHEIN
-   * à partir de son Goods ID.
-   *
-   * IMPORTANT :
-   *
-   * Le deuxième Actor reçoit uniquement l'ID.
-   *
-   * Exemple :
-   *
-   * 238675201
-   *
-   * et PAS l'URL.
-   */
-  async fetchProductById(productId: string) {
-    if (!productId) {
+  async fetchProduct(productUrl: string) {
+    if (!productUrl) {
       throw new Error(
-        "L'ID du produit SHEIN est obligatoire."
+        "L'URL du produit SHEIN est obligatoire."
       );
     }
 
     console.log(
-      `\n[Shein Product Scraper] ID reçu : ${productId}`
+      `\n[Omkar SHEIN Scraper] URL reçue : ${productUrl}`
     );
 
-    /**
-     * Input envoyé au deuxième Actor.
+    /*
+     * Omkar Cloud attend un champ "products".
      *
-     * L'ID provenant automatiquement de Native Emblem
-     * sera placé dans searchTerms.
+     * Chaque élément peut être une URL SHEIN
+     * ou un goods_id.
+     *
+     * Nous envoyons directement l'URL reçue.
      */
     const input = {
-      enrichDetails: true,
-      maxItemsPerSearch: 1,
-      quickShip: false,
-      searchTerms: [productId],
+      products: [productUrl],
     };
 
     console.log(
-      "[Shein Product Scraper] Lancement de l'Actor..."
+      "[Omkar SHEIN Scraper] Lancement de l'Actor..."
     );
 
-    /**
-     * Exécution de l'Actor Apify.
-     */
     const run = await this.client
       .actor(this.actorId)
       .call(input);
 
     console.log(
-      "[Shein Product Scraper] Actor terminé."
+      "[Omkar SHEIN Scraper] Actor terminé."
     );
 
-    /**
-     * Récupération des résultats du Dataset.
-     */
     const { items } = await this.client
       .dataset(run.defaultDatasetId)
       .listItems();
 
-    /**
-     * Vérification du résultat.
-     */
     if (!items || items.length === 0) {
       throw new Error(
-        `Aucun produit trouvé pour l'ID SHEIN ${productId}.`
+        "Omkar SHEIN Scraper n'a retourné aucun produit."
       );
     }
 
     console.log(
-      `[Shein Product Scraper] ${items.length} produit(s) trouvé(s).`
+      `[Omkar SHEIN Scraper] ${items.length} produit(s) trouvé(s).`
     );
 
-    /**
-     * Pour le moment nous retournons le résultat brut.
-     *
-     * La normalisation viendra juste après.
-     */
     return items[0];
   }
 }
