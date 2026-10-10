@@ -1,68 +1,77 @@
-import { Request, Response } from "express";
 
-import { createInternationalQuote, getUserQuotes} from "../services/internationalQuote.service";
+import { Request, Response } from "express";
+import {
+  createInternationalQuote,
+  getUserQuotes,
+} from "../services/internationalQuote.service";
+import { ExternalProductService } from "../services/externalProduct.service";
+
+const externalProductService = new ExternalProductService();
 
 export async function createInternationalQuoteController(
   req: Request,
   res: Response
 ) {
-
   try {
+    const {
+      userId,
+      productUrl,
+      productName,
+      productPrice,
+      subCategoryId,
+    } = req.body;
 
-    const quote =
-      await createInternationalQuote(
+    if (!userId || !productUrl || !subCategoryId) {
+      return res.status(400).json({
+        success: false,
+        message: "userId, productUrl et subCategoryId sont obligatoires.",
+      });
+    }
 
-        req.body.userId,
+    // Extraire le produit depuis son URL pour récupérer son poids éventuel.
+    const product = await externalProductService.fetchProduct(productUrl);
 
-        req.body.productUrl,
-
-        req.body.productName,
-
-        req.body.productPrice,
-
-        req.body.subCategoryId
-
-      );
+    const quote = await createInternationalQuote(
+      userId,
+      productUrl,
+      productName || product.name,
+      Number(productPrice ?? product.price),
+      subCategoryId,
+      product.weightKg
+    );
 
     return res.status(201).json({
-
       success: true,
-
-      data: quote
-
+      data: quote,
     });
-
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Impossible de créer le devis.";
 
     return res.status(400).json({
-
       success: false,
-
-      message: error.message
-
+      message,
     });
-
   }
-
 }
-
 
 export async function getUserQuotesController(
   req: Request,
   res: Response
 ) {
+  try {
+    const quotes = await getUserQuotes(req.params.userId);
 
-  const quotes =
-    await getUserQuotes(
-      req.params.userId
-    );
-
-  return res.json({
-
-    success: true,
-
-    data: quotes
-
-  });
-
+    return res.json({
+      success: true,
+      data: quotes,
+    });
+  } catch {
+    return res.status(500).json({
+      success: false,
+      message: "Impossible de récupérer les devis.",
+    });
+  }
 }

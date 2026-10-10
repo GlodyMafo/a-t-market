@@ -93,6 +93,17 @@ export class NativeEmblemService {
 
     const item = items[0] as Record<string, any>;
 
+    console.log(
+  "[Native Emblem] Champs reçus :",
+  Object.keys(item)
+);
+
+console.log(
+  "[Native Emblem] Catégorie reçue :",
+  item.category,
+  item.categoryId
+);
+
     const goodsId = item.goodsId ?? item.id;
 
     if (!goodsId) {

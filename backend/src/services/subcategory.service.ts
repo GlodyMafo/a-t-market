@@ -72,25 +72,25 @@ export async function createSubCategory(
 }
 
 
+
 export async function getSubCategories() {
-
   return prisma.subCategory.findMany({
-
-    include: {
-
-      category: true
-
+    where: {
+      isActive: true,
+      category: {
+        isActive: true,
+      },
     },
-
+    include: {
+      category: true,
+      weightCatalog: true,
+    },
     orderBy: {
-
-      createdAt: "desc"
-
-    }
-
+      name: "asc",
+    },
   });
-
 }
+
 
 
 export async function getSubCategoryById(
