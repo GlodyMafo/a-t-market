@@ -11,12 +11,38 @@ export async function createInternationalQuote(
 ) {
   const settings = await prisma.globalSettings.findFirst();
 
+  const subCategory = await prisma.subCategory.findFirst({
+    where: {
+      id: subCategoryId,
+      isActive: true,
+      category: {
+        isActive: true,
+      },
+    },
+  });
+
+  if (!subCategory) {
+    throw new Error(
+      "La sous-catégorie sélectionnée est invalide ou inactive."
+    );
+  }
+
+
   if (!settings) {
     throw new Error("Configuration système introuvable");
   }
 
   if (!Number.isFinite(productPrice) || productPrice <= 0) {
     throw new Error("Le prix du produit doit être valide.");
+  }
+
+
+  if (
+    extractedWeightKg !== undefined &&
+    extractedWeightKg !== null &&
+    (!Number.isFinite(extractedWeightKg) || extractedWeightKg <= 0)
+  ) {
+    throw new Error("Le poids du produit doit être valide.");
   }
 
   let productWeight: number | null = null;

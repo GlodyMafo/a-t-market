@@ -1,23 +1,23 @@
-import { Router }
-from "express";
+import { Router } from "express";
 
 import {
-
   createInternationalQuoteController,
   getUserQuotesController
+} from "../controllers/internationalQuote.controller";
 
-}
-from "../controllers/internationalQuote.controller";
+import { authMiddleware } from "../middlewares/auth.middleware";
 
 const router = Router();
 
 router.post(
   "/",
+  authMiddleware,
   createInternationalQuoteController
 );
 
 router.get(
-  "/user/:userId",
+  "/user",
+  authMiddleware,
   getUserQuotesController
 );
 

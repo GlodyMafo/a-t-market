@@ -105,6 +105,13 @@ export class SheinProvider implements ExternalProductProvider {
       console.log(
         "[SHEIN PROVIDER] Omkar Cloud : enrichissement réussi."
       );
+
+      console.log("[SHEIN PROVIDER] Prix Omkar :", {
+        price: detailedProduct?.price,
+        currency: detailedProduct?.currency,
+        priceUsd: detailedProduct?.priceUsd,
+      });
+
     } catch (error) {
       console.warn(
         "[SHEIN PROVIDER] Omkar Cloud indisponible."
@@ -453,6 +460,7 @@ export class SheinProvider implements ExternalProductProvider {
 
     const normalizedProduct: NormalizedExternalProduct = {
       source: "SHEIN",
+      weightKg: undefined,
 
       externalId:
         nativeProduct.goodsId,
