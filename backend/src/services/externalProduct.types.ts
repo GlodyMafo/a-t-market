@@ -242,40 +242,18 @@ export interface ExternalProductAttribute {
  */
 
 export interface NormalizedExternalProduct {
-  /*
-   * Fournisseur
-   */
-
+  
   source: ExternalProductSource;
-
-  /*
-   * Identifiant du produit chez le fournisseur
-   */
 
   externalId?: string;
 
-  /*
-   * URL du produit
-   */
-
   url: string;
-
-  /*
-   * Informations principales
-   */
 
   name: string;
 
   description?: string;
 
   category?: string;
-
-  /*
-   * PRIX
-   *
-   * Pour SHEIN :
-   * Native Emblem → prix
-   */
 
   price: number;
 

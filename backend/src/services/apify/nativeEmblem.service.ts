@@ -7,6 +7,7 @@ export interface NativeEmblemProduct {
   imageUrl: string | null;
   images: string[];
   price: number | null;
+  priceUsd: number | null;
   currency: string | null;
   category: string | null;
   categoryId: string | null;
@@ -94,15 +95,15 @@ export class NativeEmblemService {
     const item = items[0] as Record<string, any>;
 
     console.log(
-  "[Native Emblem] Champs reçus :",
-  Object.keys(item)
-);
+      "[Native Emblem] Champs reçus :",
+      Object.keys(item)
+    );
 
-console.log(
-  "[Native Emblem] Catégorie reçue :",
-  item.category,
-  item.categoryId
-);
+    console.log(
+      "[Native Emblem] Catégorie reçue :",
+      item.category,
+      item.categoryId
+    );
 
     const goodsId = item.goodsId ?? item.id;
 
@@ -136,6 +137,7 @@ console.log(
           ? item.images
           : [],
 
+
       price:
         typeof item.price === "number"
           ? item.price
@@ -143,9 +145,15 @@ console.log(
             ? item.salePrice
             : null,
 
+      priceUsd:
+        typeof item.priceUsd === "number"
+          ? item.priceUsd
+          : null,
+
       currency:
         item.currency ??
         null,
+
 
       category:
         item.category ??

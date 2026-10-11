@@ -69,18 +69,28 @@ export class SheinProvider implements ExternalProductProvider {
     const nativeProduct =
       await this.nativeEmblemService.fetchProduct(url);
 
+    console.log("[SHEIN PROVIDER] Prix Native Emblem :", {
+      price: nativeProduct.price,
+      currency: nativeProduct.currency,
+      priceUsd: nativeProduct.priceUsd,
+    });
+
     console.log(
       `[SHEIN PROVIDER] goodsId : ${nativeProduct.goodsId}`
     );
 
+
     if (
-      nativeProduct.price === null ||
-      nativeProduct.currency === null
+      nativeProduct.priceUsd === null ||
+      nativeProduct.priceUsd === undefined ||
+      !Number.isFinite(nativeProduct.priceUsd) ||
+      nativeProduct.priceUsd <= 0
     ) {
       throw new Error(
-        "Native Emblem n'a pas retourné le prix ou la devise du produit."
+        "Native Emblem n'a pas retourné un prix USD valide pour ce produit."
       );
     }
+
 
     // =====================================================
     // 2. OMKAR CLOUD
@@ -486,10 +496,10 @@ export class SheinProvider implements ExternalProductProvider {
        */
 
       price:
-        nativeProduct.price,
+        nativeProduct.priceUsd!,
 
       currency:
-        nativeProduct.currency,
+        "USD",
 
       images,
 
