@@ -1,24 +1,46 @@
-export const env = {
+import { z } from "zod";
 
-  DATABASE_URL:
-    process.env.DATABASE_URL!,
+// Variable texte obligatoire, avec un message clair en français
+const requis = (nom: string) =>
+  z
+    .string({ error: `${nom} est obligatoire` })
+    .min(1, `${nom} ne peut pas être vide`);
 
-  PAWAPAY_API_KEY:
-    process.env.PAWAPAY_API_KEY!,
+const envSchema = z.object({
+  NODE_ENV: z
+    .enum(["development", "test", "production"])
+    .default("development"),
 
-  PAWAPAY_BASE_URL:
-    process.env.PAWAPAY_BASE_URL!,
+  PORT: z.coerce.number().int().positive().default(5000),
 
-  PAWAPAY_DEPOSIT_CALLBACK_URL:
-    process.env.PAWAPAY_DEPOSIT_CALLBACK_URL!,
+  DATABASE_URL: requis("DATABASE_URL"),
 
-  PAWAPAY_WEBHOOK_SECRET:
-    process.env.PAWAPAY_WEBHOOK_SECRET!,
+  JWT_SECRET: requis("JWT_SECRET").min(
+    16,
+    "JWT_SECRET doit contenir au moins 16 caractères"
+  ),
+  JWT_EXPIRES_IN: z.string().min(1).default("7d"),
 
-  JWT_SECRET:
-    process.env.JWT_SECRET!,
+  PAWAPAY_API_KEY: requis("PAWAPAY_API_KEY"),
+  PAWAPAY_BASE_URL: requis("PAWAPAY_BASE_URL").url(
+    "PAWAPAY_BASE_URL doit être une URL valide"
+  ),
+  PAWAPAY_DEPOSIT_CALLBACK_URL: requis("PAWAPAY_DEPOSIT_CALLBACK_URL").url(
+    "PAWAPAY_DEPOSIT_CALLBACK_URL doit être une URL valide"
+  ),
+  PAWAPAY_WEBHOOK_SECRET: requis("PAWAPAY_WEBHOOK_SECRET"),
 
-  JWT_EXPIRES_IN:
-    process.env.JWT_EXPIRES_IN!
+  APIFY_API_TOKEN: requis("APIFY_API_TOKEN"),
+});
 
-};
+const parsed = envSchema.safeParse(process.env);
+
+if (!parsed.success) {
+  console.error("Configuration invalide. Corrige ton fichier .env :");
+  for (const issue of parsed.error.issues) {
+    console.error(` - ${issue.path.join(".")} : ${issue.message}`);
+  }
+  process.exit(1);
+}
+
+export const env = parsed.data;

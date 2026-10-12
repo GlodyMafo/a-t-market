@@ -78,7 +78,7 @@ export async function getCategoryByIdController(
 
     const category =
       await getCategoryById(
-        req.params.id
+        (req.params.id as string)
       );
 
     return res.json({

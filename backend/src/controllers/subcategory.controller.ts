@@ -77,7 +77,7 @@ export async function getSubCategoryByIdController(
 
     const data =
       await getSubCategoryById(
-        req.params.id
+        (req.params.id as string)
       );
 
     return res.json({

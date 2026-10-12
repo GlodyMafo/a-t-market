@@ -79,7 +79,7 @@ export async function getWeightBySubCategoryController(
 
     const data =
       await getWeightBySubCategory(
-        req.params.subCategoryId
+        (req.params.subCategoryId as string)
       );
 
     return res.json({

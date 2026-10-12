@@ -49,7 +49,7 @@ export async function getOrderDetailsController(
     try {
 
         const { id } =
-            req.params;
+            req.params as Record<string, string>;
 
         const order =
             await getOrderDetails(id);
@@ -84,7 +84,7 @@ export async function addTrackingEventController(
     try {
 
         const { orderId } =
-            req.params;
+            req.params as Record<string, string>;
 
         const {
             status,
@@ -192,7 +192,7 @@ export async function toggleProductStatusController(
     try {
 
         const { id } =
-            req.params;
+            req.params as Record<string, string>;
 
         const product =
             await toggleProductStatus(id);
@@ -227,7 +227,7 @@ export async function updateProductController(
   try {
 
     const { id } =
-      req.params;
+      req.params as Record<string, string>;
 
     const product =
       await updateProduct(
@@ -336,7 +336,7 @@ export async function updateInventoryController(
   try {
 
     const { productId } =
-      req.params;
+      req.params as Record<string, string>;
 
     const { quantity } =
       req.body;
@@ -378,7 +378,7 @@ export async function restockInventoryController(
   try {
 
     const { productId } =
-      req.params;
+      req.params as Record<string, string>;
 
     const {
       quantity,

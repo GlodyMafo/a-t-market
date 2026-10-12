@@ -1,4 +1,4 @@
-import { Response } from "express";
+import { Request, Response } from "express";
 import { getTrackingByOrder, addTrackingEvent }
 from "../services/tracking.service";
 
@@ -12,7 +12,7 @@ export async function getTrackingController(
 
   try {
 
-    const { orderId } = req.params;
+    const { orderId } = req.params as Record<string, string>;
 
     const tracking =
       await getTrackingByOrder(
@@ -51,7 +51,7 @@ export async function addTrackingEventController(
   try {
 
     const { orderId } =
-      req.params;
+      req.params as Record<string, string>;
 
     const {
       status,

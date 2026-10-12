@@ -16,11 +16,8 @@ import internationalQuoteRoutes from "./routes/internationalQuote.routes";
 import internationalQuoteAdminRoutes from "./routes/internationalQuote.admin.routes";
 import externalProductRoutes from "./routes/externalProduct.routes";
 
-import { initializeSettings} from "./services/settings.service";
 
-import { startPaymentReconciliationJob } from "./jobs/payment.reconciliation.job";
 
-startPaymentReconciliationJob();
 
 const app = express();
 
@@ -98,16 +95,5 @@ app.use(
   externalProductRoutes
 );
 
-
-
-initializeSettings()
-  .then(() => {
-
-    console.log(
-      "Global settings initialized"
-    );
-
-  })
-  .catch(console.error);
 
 export default app;

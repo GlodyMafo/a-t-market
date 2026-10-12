@@ -1,8 +1,7 @@
 import { Router } from "express";
 
 import {
- createPaymentController,
- confirmPaymentController
+ createPaymentController
 } from "../controllers/payment.controller";
 
 import {
@@ -29,19 +28,6 @@ router.post(
  authMiddleware,
  createPaymentController
 );
-
-
-/**
- * DEV ONLY
- * En production seul le webhook PawaPay
- * doit confirmer le paiement.
- */
-
-router.post(
- "/confirm/:paymentId",
- confirmPaymentController
-);
-
 
 router.post(
 

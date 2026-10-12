@@ -69,7 +69,7 @@ export async function createInternationalQuote(
 
   const hasKnownWeight = productWeight !== null;
 
-  const shippingCost = hasKnownWeight
+  const shippingCost = productWeight !== null
     ? productWeight * Number(settings.chinaPricePerKg)
     : 0;
 

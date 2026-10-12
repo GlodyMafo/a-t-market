@@ -75,7 +75,7 @@ export async function getProductByIdController(
 
   try {
 
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
 
 
     const product =

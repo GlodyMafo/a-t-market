@@ -66,7 +66,7 @@ export async function confirmPaymentController(
 
   try {
 
-    const { paymentId } = req.params;
+    const { paymentId } = req.params as Record<string, string>;
 
     const payment =
       await confirmPayment(paymentId);

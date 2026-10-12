@@ -39,7 +39,7 @@ export async function approveQuoteController(
     const quote =
       await approveQuote(
 
-        req.params.id,
+        (req.params.id as string),
 
         req.body.adminNotes
 
@@ -77,7 +77,7 @@ export async function rejectQuoteController(
     const quote =
       await rejectQuote(
 
-        req.params.id,
+        (req.params.id as string),
 
         req.body.adminNotes
 

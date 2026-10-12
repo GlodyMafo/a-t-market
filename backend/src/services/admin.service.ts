@@ -1,5 +1,5 @@
 import { prisma } from "../lib/prisma";
-import { TrackingStatus } from "../../generated/prisma";
+import { TrackingStatus } from "../../generated/prisma/client";
 
 interface UpdateProductData {
   name?: string;

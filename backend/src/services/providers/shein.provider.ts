@@ -526,10 +526,10 @@ export class SheinProvider implements ExternalProductProvider {
       inStock,
 
       rating:
-        nativeProduct.rating,
+        nativeProduct.rating ?? undefined,
 
       reviewsCount:
-        nativeProduct.reviewsCount,
+        nativeProduct.reviewsCount ?? undefined,
 
       raw: {
         nativeEmblem:

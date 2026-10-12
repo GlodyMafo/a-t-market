@@ -97,7 +97,7 @@ export async function getOrderByIdController(
     const order =
       await getOrderById(
 
-        req.params.id,
+        (req.params.id as string),
 
         req.user!.userId
 

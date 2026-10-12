@@ -102,7 +102,7 @@ export async function updateCartItemController(
 
   try {
 
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
 
     const { quantity } = req.body;
 
@@ -152,7 +152,7 @@ export async function removeCartItemController(
 
   try {
 
-    const { id } = req.params;
+    const { id } = req.params as Record<string, string>;
 
     const result =
       await removeCartItem(
