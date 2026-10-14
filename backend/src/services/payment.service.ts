@@ -1,88 +1,89 @@
 import { prisma } from "../lib/prisma";
 import { randomUUID } from "crypto";
 import { createDeposit } from "./pawapay.service";
+import { PAYMENT_CURRENCY } from "./payment.settlement.service";
 
 
-async function decrementOrderInventory(
-    tx: any,
-    orderId: string
-) {
+// async function decrementOrderInventory(
+//     tx: any,
+//     orderId: string
+// ) {
 
-    const order =
-        await tx.order.findUnique({
+//     const order =
+//         await tx.order.findUnique({
 
-            where: {
-                id: orderId
-            },
+//             where: {
+//                 id: orderId
+//             },
 
-            include: {
-                items: true
-            }
+//             include: {
+//                 items: true
+//             }
 
-        });
+//         });
 
-    if (!order) {
-        return;
-    }
+//     if (!order) {
+//         return;
+//     }
 
-    for (const item of order.items) {
+//     for (const item of order.items) {
 
-        const inventory =
-            await tx.inventory.findUnique({
+//         const inventory =
+//             await tx.inventory.findUnique({
 
-                where: {
-                    productId: item.productId
-                }
+//                 where: {
+//                     productId: item.productId
+//                 }
 
-            });
+//             });
 
-        if (!inventory) {
-            continue;
-        }
+//         if (!inventory) {
+//             continue;
+//         }
 
-        const newQuantity =
-            inventory.quantity - item.quantity;
+//         const newQuantity =
+//             inventory.quantity - item.quantity;
 
-        await tx.inventory.update({
+//         await tx.inventory.update({
 
-            where: {
-                productId: item.productId
-            },
+//             where: {
+//                 productId: item.productId
+//             },
 
-            data: {
+//             data: {
 
-                quantity:
-                    Math.max(
-                        0,
-                        newQuantity
-                    )
+//                 quantity:
+//                     Math.max(
+//                         0,
+//                         newQuantity
+//                     )
 
-            }
+//             }
 
-        });
+//         });
 
-        await tx.inventoryMovement.create({
+//         await tx.inventoryMovement.create({
 
-            data: {
+//             data: {
 
-                productId:
-                    item.productId,
+//                 productId:
+//                     item.productId,
 
-                quantity:
-                    item.quantity,
+//                 quantity:
+//                     item.quantity,
 
-                type: "OUT",
+//                 type: "OUT",
 
-                reason:
-                    `Order ${orderId}`
+//                 reason:
+//                     `Order ${orderId}`
 
-            }
+//             }
 
-        });
+//         });
 
-    }
+//     }
 
-}
+// }
 
 export async function createPayment(
 
@@ -225,7 +226,8 @@ export async function createPayment(
                 amount:
                     payment.amount.toString(),
 
-                currency: "USD",
+
+                currency: PAYMENT_CURRENCY,
 
                 phoneNumber,
 
@@ -291,254 +293,254 @@ export async function createPayment(
 
 }
 
-export async function confirmPayment(
-    paymentId: string
-) {
+// export async function confirmPayment(
+//     paymentId: string
+// ) {
 
-    const payment =
-        await prisma.payment.findUnique({
-            where: {
-                id: paymentId
-            }
-        });
+//     const payment =
+//         await prisma.payment.findUnique({
+//             where: {
+//                 id: paymentId
+//             }
+//         });
 
-    if (!payment) {
-        throw new Error(
-            "Paiement introuvable"
-        );
-    }
+//     if (!payment) {
+//         throw new Error(
+//             "Paiement introuvable"
+//         );
+//     }
 
-    if (payment.status === "PAID") {
-        throw new Error(
-            "Paiement déjà confirmé"
-        );
-    }
+//     if (payment.status === "PAID") {
+//         throw new Error(
+//             "Paiement déjà confirmé"
+//         );
+//     }
 
-    const result =
-        await prisma.$transaction(
+//     const result =
+//         await prisma.$transaction(
 
-            async (tx) => {
+//             async (tx) => {
 
-                const updatedPayment =
-                    await tx.payment.update({
+//                 const updatedPayment =
+//                     await tx.payment.update({
 
-                        where: {
-                            id: paymentId
-                        },
+//                         where: {
+//                             id: paymentId
+//                         },
 
-                        data: {
-                            status: "PAID"
-                        }
+//                         data: {
+//                             status: "PAID"
+//                         }
 
-                    });
+//                     });
 
-                const paidPayments =
-                    await tx.payment.findMany({
+//                 const paidPayments =
+//                     await tx.payment.findMany({
 
-                        where: {
-                            orderId: payment.orderId,
-                            status: "PAID"
-                        }
+//                         where: {
+//                             orderId: payment.orderId,
+//                             status: "PAID"
+//                         }
 
-                    });
+//                     });
 
-                const hasFullPayment =
-                    paidPayments.some(
-                        p => p.type === "FULL"
-                    );
+//                 const hasFullPayment =
+//                     paidPayments.some(
+//                         p => p.type === "FULL"
+//                     );
 
-                const hasProductPayment =
-                    paidPayments.some(
-                        p => p.type === "PRODUCT"
-                    );
+//                 const hasProductPayment =
+//                     paidPayments.some(
+//                         p => p.type === "PRODUCT"
+//                     );
 
-                const hasShippingPayment =
-                    paidPayments.some(
-                        p => p.type === "SHIPPING"
-                    );
+//                 const hasShippingPayment =
+//                     paidPayments.some(
+//                         p => p.type === "SHIPPING"
+//                     );
 
-                let orderStatus: any =
-                    "PENDING_PAYMENT";
+//                 let orderStatus: any =
+//                     "PENDING_PAYMENT";
 
-                if (
-                    hasFullPayment ||
-                    (
-                        hasProductPayment &&
-                        hasShippingPayment
-                    )
-                ) {
+//                 if (
+//                     hasFullPayment ||
+//                     (
+//                         hasProductPayment &&
+//                         hasShippingPayment
+//                     )
+//                 ) {
 
-                    orderStatus = "PAID";
+//                     orderStatus = "PAID";
 
-                }
+//                 }
 
-                else if (
-                    hasProductPayment
-                ) {
+//                 else if (
+//                     hasProductPayment
+//                 ) {
 
-                    orderStatus =
-                        "PARTIALLY_PAID";
+//                     orderStatus =
+//                         "PARTIALLY_PAID";
 
-                }
+//                 }
 
-                await tx.order.update({
+//                 await tx.order.update({
 
-                    where: {
-                        id: payment.orderId
-                    },
+//                     where: {
+//                         id: payment.orderId
+//                     },
 
-                    data: {
-                        status: orderStatus
-                    }
+//                     data: {
+//                         status: orderStatus
+//                     }
 
-                });
+//                 });
 
-                await decrementOrderInventory(
-                    tx,
-                    payment.orderId
-                );
+//                 await decrementOrderInventory(
+//                     tx,
+//                     payment.orderId
+//                 );
 
-                return updatedPayment;
+//                 return updatedPayment;
 
-            }
+//             }
 
-        );
+//         );
 
-    return result;
+//     return result;
 
-}
+// }
 
-export async function handlePawapayCallback(
-    depositId: string,
-    status: string
-) {
+// export async function handlePawapayCallback(
+//     depositId: string,
+//     status: string
+// ) {
 
-    const payment =
-        await prisma.payment.findFirst({
+//     const payment =
+//         await prisma.payment.findFirst({
 
-            where: {
-                providerReference: depositId
-            }
+//             where: {
+//                 providerReference: depositId
+//             }
 
-        });
+//         });
 
-    if (!payment) {
+//     if (!payment) {
 
-        throw new Error(
-            "Paiement PawaPay introuvable"
-        );
+//         throw new Error(
+//             "Paiement PawaPay introuvable"
+//         );
 
-    }
+//     }
 
-    if (status !== "COMPLETED") {
+//     if (status !== "COMPLETED") {
 
-        await prisma.payment.update({
+//         await prisma.payment.update({
 
-            where: {
-                id: payment.id
-            },
+//             where: {
+//                 id: payment.id
+//             },
 
-            data: {
-                status: "FAILED"
-            }
+//             data: {
+//                 status: "FAILED"
+//             }
 
-        });
+//         });
 
-        return payment;
+//         return payment;
 
-    }
+//     }
 
-    const result =
-        await prisma.$transaction(
+//     const result =
+//         await prisma.$transaction(
 
-            async (tx) => {
+//             async (tx) => {
 
-                const updatedPayment =
-                    await tx.payment.update({
+//                 const updatedPayment =
+//                     await tx.payment.update({
 
-                        where: {
-                            id: payment.id
-                        },
+//                         where: {
+//                             id: payment.id
+//                         },
 
-                        data: {
-                            status: "PAID"
-                        }
+//                         data: {
+//                             status: "PAID"
+//                         }
 
-                    });
+//                     });
 
-                const paidPayments =
-                    await tx.payment.findMany({
+//                 const paidPayments =
+//                     await tx.payment.findMany({
 
-                        where: {
-                            orderId: payment.orderId,
-                            status: "PAID"
-                        }
+//                         where: {
+//                             orderId: payment.orderId,
+//                             status: "PAID"
+//                         }
 
-                    });
+//                     });
 
-                const hasFullPayment =
-                    paidPayments.some(
-                        p => p.type === "FULL"
-                    );
+//                 const hasFullPayment =
+//                     paidPayments.some(
+//                         p => p.type === "FULL"
+//                     );
 
-                const hasProductPayment =
-                    paidPayments.some(
-                        p => p.type === "PRODUCT"
-                    );
+//                 const hasProductPayment =
+//                     paidPayments.some(
+//                         p => p.type === "PRODUCT"
+//                     );
 
-                const hasShippingPayment =
-                    paidPayments.some(
-                        p => p.type === "SHIPPING"
-                    );
+//                 const hasShippingPayment =
+//                     paidPayments.some(
+//                         p => p.type === "SHIPPING"
+//                     );
 
-                let orderStatus: any =
-                    "PENDING_PAYMENT";
+//                 let orderStatus: any =
+//                     "PENDING_PAYMENT";
 
-                if (
-                    hasFullPayment ||
-                    (
-                        hasProductPayment &&
-                        hasShippingPayment
-                    )
-                ) {
+//                 if (
+//                     hasFullPayment ||
+//                     (
+//                         hasProductPayment &&
+//                         hasShippingPayment
+//                     )
+//                 ) {
 
-                    orderStatus = "PAID";
+//                     orderStatus = "PAID";
 
-                }
+//                 }
 
-                else if (
-                    hasProductPayment
-                ) {
+//                 else if (
+//                     hasProductPayment
+//                 ) {
 
-                    orderStatus =
-                        "PARTIALLY_PAID";
+//                     orderStatus =
+//                         "PARTIALLY_PAID";
 
-                }
+//                 }
 
-                await tx.order.update({
+//                 await tx.order.update({
 
-                    where: {
-                        id: payment.orderId
-                    },
+//                     where: {
+//                         id: payment.orderId
+//                     },
 
-                    data: {
-                        status: orderStatus
-                    }
+//                     data: {
+//                         status: orderStatus
+//                     }
 
-                });
+//                 });
 
 
-                await decrementOrderInventory(
-                    tx,
-                    payment.orderId
-                );
+//                 await decrementOrderInventory(
+//                     tx,
+//                     payment.orderId
+//                 );
 
-                return updatedPayment;
+//                 return updatedPayment;
 
-            }
+//             }
 
-        );
+//         );
 
-    return result;
+//     return result;
 
-}
+// }

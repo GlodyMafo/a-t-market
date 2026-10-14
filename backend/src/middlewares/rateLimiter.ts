@@ -8,7 +8,7 @@ export const webhookRateLimiter = rateLimit({
 
 
     max:
-        5, // 20 requêtes max par minute
+        60, // 60 requêtes max par minute
 
 
     message: {

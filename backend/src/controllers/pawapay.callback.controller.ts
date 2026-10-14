@@ -4,45 +4,28 @@ import { ZodError } from "zod";
 import { handlePawapayCallback } from "../services/pawapay.callback.service";
 import { pawapayWebhookSchema } from "../validators/pawapay.validator";
 
-export async function pawapayCallbackController(
-  req: Request,
-  res: Response
-) {
+export async function pawapayCallbackController(req: Request, res: Response) {
   try {
-    if (!req.body || Object.keys(req.body).length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Empty webhook payload",
-      });
-    }
+    const payload = pawapayWebhookSchema.parse(req.body);
 
-    console.log("===== PAWAPAY CALLBACK =====");
-    console.log(req.body);
+    await handlePawapayCallback(payload);
 
-    const validatedData = pawapayWebhookSchema.parse(req.body);
-
-    const payment = await handlePawapayCallback(validatedData);
-
-    return res.status(200).json({
-      success: true,
-      data: payment,
-    });
+    // Réponse volontairement minimale : aucune donnée de paiement n'est renvoyée.
+    // 200 même si le dépôt est inconnu, pour que PawaPay ne réessaie pas indéfiniment.
+    return res.status(200).json({ success: true });
   } catch (error: any) {
     if (error instanceof ZodError) {
-      console.error("Webhook validation failed:", error.flatten());
-
       return res.status(400).json({
         success: false,
         message: "Invalid webhook payload",
-        errors: error.flatten(),
       });
     }
 
-    console.error("PAWAPAY CALLBACK ERROR:", error);
-
+    // Erreur côté serveur (base, réseau vers PawaPay) : 500 pour que PawaPay réessaie.
+    console.error("PAWAPAY CALLBACK ERROR:", error.message);
     return res.status(500).json({
       success: false,
-      message: error.message ?? "Webhook processing failed",
+      message: "Webhook processing failed",
     });
   }
 }

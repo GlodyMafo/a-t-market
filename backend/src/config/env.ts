@@ -28,8 +28,7 @@ const envSchema = z.object({
   PAWAPAY_DEPOSIT_CALLBACK_URL: requis("PAWAPAY_DEPOSIT_CALLBACK_URL").url(
     "PAWAPAY_DEPOSIT_CALLBACK_URL doit être une URL valide"
   ),
-  PAWAPAY_WEBHOOK_SECRET: requis("PAWAPAY_WEBHOOK_SECRET"),
-
+  PAWAPAY_WEBHOOK_SECRET: z.string().optional(),
   APIFY_API_TOKEN: requis("APIFY_API_TOKEN"),
 });
 

@@ -7,7 +7,7 @@
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
     "start": "node dist/src/server.js",
-    "test": "tsx --test src/tests/smoke.test.ts",
+    "test": "tsx --test --test-concurrency=1 src/tests/smoke.test.ts src/tests/payment.settlement.test.ts src/tests/pawapay.callback.test.ts",
     "seed": "tsx prisma/seed.ts"
   },
   "keywords": [],
@@ -15,6 +15,8 @@
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
+    "@electric-sql/pglite": "^0.4.1",
+    "@electric-sql/pglite-socket": "^0.1.1",
     "@types/bcrypt": "^6.0.0",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
