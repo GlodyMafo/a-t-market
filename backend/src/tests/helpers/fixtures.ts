@@ -43,3 +43,56 @@ export async function creerPaiement(
   });
   return { payment, depositId };
 }
+
+export async function creerUtilisateur() {
+  return prisma.user.create({
+    data: { email: `u-${randomUUID()}@test.local`, password: "x" },
+  });
+}
+
+export async function creerProduit(opts?: {
+  stock?: number;
+  price?: string;
+  margin?: string;
+  type?: "LOCAL" | "INTERNATIONAL";
+  isActive?: boolean;
+  name?: string;
+}) {
+  const id = randomUUID();
+  const type = opts?.type ?? "LOCAL";
+  return prisma.product.create({
+    data: {
+      name: opts?.name ?? `Produit ${id.slice(0, 6)}`,
+      slug: `produit-${id}`,
+      price: opts?.price ?? "10.00",
+      margin: opts?.margin ?? "0",
+      type,
+      isActive: opts?.isActive ?? true,
+      ...(type === "LOCAL"
+        ? { inventory: { create: { quantity: opts?.stock ?? 5 } } }
+        : {}),
+    },
+  });
+}
+
+export async function remplirPanier(
+  userId: string,
+  items: { productId: string; quantity: number }[]
+) {
+  const cart = await prisma.cart.upsert({
+    where: { userId },
+    update: {},
+    create: { userId },
+  });
+  for (const item of items) {
+    await prisma.cartItem.create({
+      data: { cartId: cart.id, productId: item.productId, quantity: item.quantity },
+    });
+  }
+  return cart;
+}
+
+export async function stockDe(productId: string) {
+  const inv = await prisma.inventory.findUniqueOrThrow({ where: { productId } });
+  return inv.quantity;
+}

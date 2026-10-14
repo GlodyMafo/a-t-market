@@ -363,55 +363,52 @@ export async function getInventory() {
 
 }
 
-
 export async function updateInventory(
   productId: string,
   quantity: number
 ) {
-
-  if (quantity < 0) {
-
+  if (!Number.isInteger(quantity) || quantity < 0) {
     throw new Error(
-      "Le stock ne peut pas être négatif"
+      "Le stock doit être un entier positif ou nul"
     );
-
   }
 
-  const inventory =
-    await prisma.inventory.findUnique({
+  return prisma.$transaction(async (tx) => {
+    // On verrouille la ligne de stock : une réservation qui arrive en même temps
+    // ne peut pas être écrasée par cette correction.
+    const rows = await tx.$queryRaw<{ quantity: number }[]>`
+      SELECT quantity FROM "Inventory"
+      WHERE "productId" = ${productId}
+      FOR UPDATE
+    `;
 
-      where: {
-        productId
-      }
-
-    });
-
-  if (!inventory) {
-
-    throw new Error(
-      "Inventaire introuvable"
-    );
-
-  }
-
-  return prisma.inventory.update({
-
-    where: {
-      productId
-    },
-
-    data: {
-      quantity
-    },
-
-    include: {
-
-      product: true
-
+    if (rows.length === 0) {
+      throw new Error("Inventaire introuvable");
     }
 
-  });
+    const before = rows[0].quantity;
+    const difference = quantity - before;
 
+    const updated = await tx.inventory.update({
+      where: { productId },
+      data: { quantity },
+      include: { product: true }
+    });
+
+    // Chaque changement de stock laisse une trace
+    if (difference !== 0) {
+      await tx.inventoryMovement.create({
+        data: {
+          productId,
+          quantity: Math.abs(difference),
+          type: difference > 0 ? "IN" : "OUT",
+          reason: `Ajustement admin (${before} → ${quantity})`
+        }
+      });
+    }
+
+    return updated;
+  });
 }
 
 export async function restockInventory(
@@ -419,74 +416,35 @@ export async function restockInventory(
   quantity: number,
   reason?: string
 ) {
-
-  if (quantity <= 0) {
-
+  if (!Number.isInteger(quantity) || quantity <= 0) {
     throw new Error(
-      "La quantité doit être supérieure à 0"
+      "La quantité doit être un entier supérieur à 0"
     );
-
   }
 
-  return prisma.$transaction(
+  return prisma.$transaction(async (tx) => {
+    // Incrément atomique (et non "ancienne valeur + n") : ne peut pas écraser
+    // une réservation concurrente.
+    const result = await tx.inventory.updateMany({
+      where: { productId },
+      data: { quantity: { increment: quantity } }
+    });
 
-    async (tx) => {
-
-      const inventory =
-        await tx.inventory.findUnique({
-
-          where: {
-            productId
-          }
-
-        });
-
-      if (!inventory) {
-
-        throw new Error(
-          "Inventaire introuvable"
-        );
-
-      }
-
-      const updatedInventory =
-        await tx.inventory.update({
-
-          where: {
-            productId
-          },
-
-          data: {
-
-            quantity:
-              inventory.quantity + quantity
-
-          }
-
-        });
-
-      await tx.inventoryMovement.create({
-
-        data: {
-
-          productId,
-
-          quantity,
-
-          type: "IN",
-
-          reason:
-            reason ||
-            "Réapprovisionnement"
-
-        }
-
-      });
-
-      return updatedInventory;
-
+    if (result.count === 0) {
+      throw new Error("Inventaire introuvable");
     }
 
-  );
+    await tx.inventoryMovement.create({
+      data: {
+        productId,
+        quantity,
+        type: "IN",
+        reason: reason || "Réapprovisionnement"
+      }
+    });
 
+    return tx.inventory.findUniqueOrThrow({
+      where: { productId }
+    });
+  });
 }

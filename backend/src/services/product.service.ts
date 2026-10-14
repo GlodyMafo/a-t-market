@@ -108,75 +108,59 @@ export async function createProduct(data: CreateProductData) {
 }
 
 
-// Get all active products
+// Règle 4.14 : un produit LOCAL dont le stock est nul n'est pas visible côté client.
+// Les produits INTERNATIONAUX n'ont pas de stock local : ils restent visibles.
 
+const visibleToCustomers = {
+  isActive: true,
+  OR: [
+    { type: "INTERNATIONAL" as const },
+    { type: "LOCAL" as const, inventory: { quantity: { gt: 0 } } }
+  ]
+};
+
+// Get all products visible to customers
 export async function getProducts() {
-
   const products = await prisma.product.findMany({
-    where: {
-      isActive: true // Ici nous prenons uniquement les produits actifs
-    },
-
+    where: visibleToCustomers,
     include: {
-
       images: true,
-
       inventory: true,
-
       subCategory: {
-
         include: {
-
           category: true
-
         }
-
       }
-
     },
-
     orderBy: {
       createdAt: "desc"
     }
   });
 
-
   return products;
 }
 
 // Get product details by ID
-
 export async function getProductById(id: string) {
-
-  const product = await prisma.product.findUnique({
+  const product = await prisma.product.findFirst({
     where: {
-      id
+      id,
+      ...visibleToCustomers
     },
-
     include: {
-
       images: true,
-
       inventory: true,
-
       subCategory: {
-
         include: {
-
           category: true
-
         }
-
       }
-
     }
   });
-
 
   if (!product) {
     throw new Error("Produit introuvable");
   }
-
 
   return product;
 }

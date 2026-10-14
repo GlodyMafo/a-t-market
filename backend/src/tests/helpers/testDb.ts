@@ -36,7 +36,7 @@ export async function startTestDb() {
 }
 
 export async function resetTestDb() {
-  await db.exec('TRUNCATE TABLE "User" RESTART IDENTITY CASCADE');
+  await db.exec('TRUNCATE TABLE "User", "Product" RESTART IDENTITY CASCADE');
 }
 
 export async function stopTestDb() {

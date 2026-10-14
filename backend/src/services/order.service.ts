@@ -1,170 +1,98 @@
 import { prisma } from "../lib/prisma";
+import { reserveStockForOrder } from "./inventory.service";
 
+// Les montants sont calculés en centimes pour éviter les erreurs de virgule flottante.
+const toCents = (value: unknown) => Math.round(Number(value) * 100);
 
 // Create order from user cart
+export async function createOrderFromCart(userId: string) {
+  const cartRef = await prisma.cart.findUnique({
+    where: { userId },
+    select: { id: true },
+  });
 
-export async function createOrderFromCart(
-  userId: string
-) {
+  if (!cartRef) {
+    throw new Error("Panier introuvable");
+  }
 
-  const cart =
-    await prisma.cart.findUnique({
+  return prisma.$transaction(async (tx) => {
+    // On verrouille le panier : un double clic sur "Commander" ne crée qu'une commande
+    // (le second appel attend, puis trouve un panier vide).
+    await tx.$queryRaw`SELECT id FROM "Cart" WHERE id = ${cartRef.id} FOR UPDATE`;
 
-      where: {
-        userId
-      },
-
-      include: {
-
-        items: {
-
-          include: {
-
-            product: true
-
-          }
-
-        }
-
-      }
-
+    const cart = await tx.cart.findUniqueOrThrow({
+      where: { id: cartRef.id },
+      include: { items: { include: { product: true } } },
     });
 
-  if (!cart) {
+    if (cart.items.length === 0) {
+      throw new Error("Le panier est vide");
+    }
 
-    throw new Error(
-      "Panier introuvable"
-    );
-
-  }
-
-  if (cart.items.length === 0) {
-
-    throw new Error(
-      "Le panier est vide"
-    );
-
-  }
-
-  const productsAmount =
-    cart.items.reduce(
-
-      (total, item) => {
-
-        const sellingPrice =
-          Number(item.product.price) +
-          Number(item.product.margin);
-
-        return (
-          total +
-          sellingPrice * item.quantity
+    for (const item of cart.items) {
+      if (!item.product.isActive) {
+        throw new Error(
+          `Le produit « ${item.product.name} » n'est plus disponible`
         );
-
-      },
-
-      0
-
-    );
-
-  // Transport calculé plus tard
-  const shippingAmount = 0;
-
-  const totalAmount =
-    productsAmount +
-    shippingAmount;
-
-  const order =
-    await prisma.$transaction(
-
-      async (tx) => {
-
-        const createdOrder =
-          await tx.order.create({
-
-            data: {
-
-              userId,
-
-              productsAmount,
-
-              shippingAmount,
-
-              totalAmount,
-
-              status:
-                "PENDING_PAYMENT",
-
-              items: {
-
-                create:
-
-                  cart.items.map(
-
-                    (item) => {
-
-                      const basePrice =
-                        Number(item.product.price);
-
-                      const margin =
-                        Number(item.product.margin);
-
-                      const sellingPrice =
-                        basePrice + margin;
-
-                      return {
-
-                        productId:
-                          item.productId,
-
-                        quantity:
-                          item.quantity,
-
-                        basePrice,
-
-                        margin,
-
-                        price:
-                          sellingPrice
-
-                      };
-
-                    }
-
-                  )
-
-              }
-
-            },
-
-            include: {
-
-              items: true
-
-            }
-
-          });
-
-        await tx.cartItem.deleteMany({
-
-          where: {
-
-            cartId:
-              cart.id
-
-          }
-
-        });
-
-        return createdOrder;
-
       }
+    }
 
+    const lines = cart.items.map((item) => {
+      const basePriceCents = toCents(item.product.price);
+      const marginCents = toCents(item.product.margin);
+      return {
+        item,
+        basePrice: basePriceCents / 100,
+        margin: marginCents / 100,
+        price: (basePriceCents + marginCents) / 100,
+        lineCents: (basePriceCents + marginCents) * item.quantity,
+      };
+    });
+
+    const productsAmount =
+      lines.reduce((sum, l) => sum + l.lineCents, 0) / 100;
+
+    // Transport calculé plus tard
+    const shippingAmount = 0;
+    const totalAmount = productsAmount + shippingAmount;
+
+    const createdOrder = await tx.order.create({
+      data: {
+        userId,
+        productsAmount,
+        shippingAmount,
+        totalAmount,
+        status: "PENDING_PAYMENT",
+        items: {
+          create: lines.map((l) => ({
+            productId: l.item.productId,
+            quantity: l.item.quantity,
+            basePrice: l.basePrice,
+            margin: l.margin,
+            price: l.price,
+          })),
+        },
+      },
+      include: { items: true },
+    });
+
+    // Réservation du stock des produits locaux (échoue => tout est annulé)
+    await reserveStockForOrder(
+      tx,
+      createdOrder.id,
+      cart.items
+        .filter((item) => item.product.type === "LOCAL")
+        .map((item) => ({
+          productId: item.productId,
+          quantity: item.quantity,
+        }))
     );
 
-  return order;
+    await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
 
+    return createdOrder;
+  });
 }
-
 
 // Get all orders by user
 

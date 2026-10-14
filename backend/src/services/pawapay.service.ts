@@ -14,31 +14,31 @@ function normalizePhone(phone: string) {
 
 }
 
-function normalizeProvider(provider:string){
+function normalizeProvider(provider: string) {
 
-    const providers: Record<string,string> = {
+    const providers: Record<string, string> = {
 
-        AIRTEL:"AIRTEL_COD",
+        AIRTEL: "AIRTEL_COD",
 
-        MTN:"MTN_MOMO_COD",
+        MTN: "MTN_MOMO_COD",
 
-        ORANGE:"ORANGE_COD",
+        ORANGE: "ORANGE_COD",
 
-        VODACOM:"VODACOM_MPESA"
+        VODACOM: "VODACOM_MPESA"
 
     };
 
 
     const normalized =
         providers[
-          provider.toUpperCase()
+        provider.toUpperCase()
         ];
 
 
-    if(!normalized){
+    if (!normalized) {
 
         throw new Error(
-          "Provider Mobile Money non supporté"
+            "Provider Mobile Money non supporté"
         );
 
     }
@@ -79,11 +79,11 @@ export async function createDeposit(
             accountDetails: {
 
                 phoneNumber:
-                     normalizePhone(data.phoneNumber),
+                    normalizePhone(data.phoneNumber),
 
 
                 provider:
-                   normalizeProvider(data.provider)
+                    normalizeProvider(data.provider)
 
             }
 
@@ -118,26 +118,16 @@ export async function createDeposit(
             env.PAWAPAY_BASE_URL
         );
 
-
-
-        // console.log(
-        //     "PAWAPAY PAYLOAD:",
-        //     payload
-        // );
-
-
-
-
         const response = await fetch(
 
             `${env.PAWAPAY_BASE_URL}/v2/deposits`,
 
             {
 
-                method:"POST",
+                method: "POST",
 
 
-                headers:{
+                headers: {
 
 
                     Authorization:
@@ -157,19 +147,8 @@ export async function createDeposit(
 
         );
 
-
-
         const responseText =
             await response.text();
-
-
-
-        console.log(
-            "PAWAPAY RESPONSE:",
-            responseText
-        );
-
-
 
         if (!response.ok) {
 
@@ -182,19 +161,13 @@ export async function createDeposit(
 
         }
 
-
-
         const result:
             CreateDepositResponse =
             JSON.parse(responseText);
 
-
-
         return result;
 
-
-
-    } catch(error:any) {
+    } catch (error: any) {
 
 
         console.error(
