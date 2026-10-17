@@ -1,5 +1,6 @@
 import { NativeEmblemService } from "../apify/nativeEmblem.service";
 import { SheinProductService } from "../apify/sheinProduct.service";
+import { hostMatchesDomain, parseSupportedProductUrl } from "../productUrl";
 
 import {
   NormalizedExternalProduct,
@@ -25,13 +26,11 @@ export class SheinProvider implements ExternalProductProvider {
     this.sheinProductService = new SheinProductService();
   }
 
-  supports(url: string): boolean {
+    supports(url: string): boolean {
     try {
-      const parsedUrl = new URL(url);
+      const parsedUrl = parseSupportedProductUrl(url);
 
-      return parsedUrl.hostname
-        .toLowerCase()
-        .includes("shein.com");
+      return hostMatchesDomain(parsedUrl.hostname, "shein.com");
     } catch {
       return false;
     }

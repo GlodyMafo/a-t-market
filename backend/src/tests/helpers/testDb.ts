@@ -36,7 +36,10 @@ export async function startTestDb() {
 }
 
 export async function resetTestDb() {
-  await db.exec('TRUNCATE TABLE "User", "Product" RESTART IDENTITY CASCADE');
+    // On vide aussi produits, catégories et réglages : ils ne dépendent pas des utilisateurs.
+  await db.exec(
+    'TRUNCATE TABLE "User", "Product", "Category", "GlobalSettings" RESTART IDENTITY CASCADE'
+  );
 }
 
 export async function stopTestDb() {

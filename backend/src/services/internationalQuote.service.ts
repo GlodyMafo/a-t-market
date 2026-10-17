@@ -1,5 +1,5 @@
-
 import { prisma } from "../lib/prisma";
+import { computeQuote } from "./pricing.service";
 
 export async function createInternationalQuote(
   userId: string,
@@ -27,7 +27,6 @@ export async function createInternationalQuote(
     );
   }
 
-
   if (!settings) {
     throw new Error("Configuration système introuvable");
   }
@@ -35,7 +34,6 @@ export async function createInternationalQuote(
   if (!Number.isFinite(productPrice) || productPrice <= 0) {
     throw new Error("Le prix du produit doit être valide.");
   }
-
 
   if (
     extractedWeightKg !== undefined &&
@@ -45,13 +43,10 @@ export async function createInternationalQuote(
     throw new Error("Le poids du produit doit être valide.");
   }
 
+  // Poids : d'abord celui extrait du site, sinon l'estimation validée du catalogue.
   let productWeight: number | null = null;
 
-  if (
-    typeof extractedWeightKg === "number" &&
-    Number.isFinite(extractedWeightKg) &&
-    extractedWeightKg > 0
-  ) {
+  if (typeof extractedWeightKg === "number" && extractedWeightKg > 0) {
     productWeight = extractedWeightKg;
   } else {
     const weightCatalog = await prisma.weightCatalog.findUnique({
@@ -67,45 +62,30 @@ export async function createInternationalQuote(
     }
   }
 
-  const hasKnownWeight = productWeight !== null;
+  const quote = computeQuote({
+    productPrice,
+    weightKg: productWeight,
+    settings,
+  });
 
-  const shippingCost = productWeight !== null
-    ? productWeight * Number(settings.chinaPricePerKg)
-    : 0;
-
-  const commissionCost =
-    productPrice * (Number(settings.commissionRate) / 100);
-
-  // Les frais de douane sont déjà inclus dans la livraison.
-  const customsCost = 0;
-
-  const totalPrice =
-    productPrice +
-    shippingCost +
-    commissionCost +
-    customsCost +
-    Number(settings.fixedFee);
-
-  const status = hasKnownWeight
-    ? "AUTO_APPROVED"
-    : "PENDING_REVIEW";
+  const status = quote.isProvisional ? "PENDING_REVIEW" : "AUTO_APPROVED";
 
   return prisma.internationalQuote.create({
     data: {
       userId,
       productUrl,
       productName,
-      productPrice,
+      productPrice: quote.productPrice,
       productWeight,
-      shippingCost,
-      customsCost,
-      commissionCost,
-      totalPrice,
+      shippingCost: quote.shippingCost,
+      customsCost: quote.customsCost,
+      commissionCost: quote.commissionCost,
+      totalPrice: quote.totalPrice,
       subCategoryId,
       status,
-      adminNotes: hasKnownWeight
-        ? null
-        : "Poids inconnu : total provisoire, validation admin requise avant confirmation.",
+      adminNotes: quote.isProvisional
+        ? "Poids inconnu : total provisoire, validation admin requise avant confirmation."
+        : null,
     },
   });
 }

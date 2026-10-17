@@ -7,6 +7,7 @@ import {
 } from "./externalProduct.provider";
 
 import { SheinProvider } from "./providers/shein.provider";
+import { parseSupportedProductUrl } from "./productUrl";
 
 export class ExternalProductService {
 
@@ -24,11 +25,9 @@ export class ExternalProductService {
     url: string
   ): Promise<NormalizedExternalProduct> {
 
-    if (!url) {
-      throw new Error(
-        "L'URL du produit est obligatoire."
-      );
-    }
+    // Validation stricte AVANT tout appel à un fournisseur (et donc à Apify, payant).
+    const parsedUrl = parseSupportedProductUrl(url);
+    url = parsedUrl.href;
 
     const provider =
       this.providers.find(

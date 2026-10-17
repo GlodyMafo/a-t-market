@@ -1,4 +1,6 @@
 import { ApifyClient } from "apify-client";
+import { APIFY_RUN_OPTIONS } from "./apifyLimits";
+import { hostMatchesDomain } from "../productUrl";
 
 export interface NativeEmblemProduct {
   goodsId: string;
@@ -55,7 +57,7 @@ export class NativeEmblemService {
       );
     }
 
-    if (!url.hostname.toLowerCase().includes("shein.com")) {
+    if (!hostMatchesDomain(url.hostname, "shein.com")) {
       throw new Error(
         "L'URL fournie n'est pas une URL SHEIN."
       );
@@ -76,7 +78,7 @@ export class NativeEmblemService {
 
     const run = await this.client
       .actor(this.actorId)
-      .call(input);
+      .call(input, APIFY_RUN_OPTIONS);
 
     console.log(
       "[Native Emblem] Actor terminé."

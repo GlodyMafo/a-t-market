@@ -7,7 +7,7 @@
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
     "start": "node dist/src/server.js",
-    "test": "tsx --test --test-concurrency=1 src/tests/smoke.test.ts src/tests/payment.settlement.test.ts src/tests/pawapay.callback.test.ts src/tests/payment.create.test.ts src/tests/inventory.test.ts",
+    "test": "tsx --test --test-concurrency=1 src/tests/smoke.test.ts src/tests/payment.settlement.test.ts src/tests/pawapay.callback.test.ts src/tests/payment.create.test.ts src/tests/inventory.test.ts src/tests/pricing.test.ts src/tests/productUrl.test.ts src/tests/quote.test.ts src/tests/extraction.http.test.ts",
     "seed": "tsx prisma/seed.ts"
   },
   "keywords": [],

@@ -1,26 +1,14 @@
-
 import { Request, Response } from "express";
 import {
   createInternationalQuote,
   getUserQuotes,
 } from "../services/internationalQuote.service";
 import { ExternalProductService } from "../services/externalProduct.service";
+import { parseSupportedProductUrl } from "../services/productUrl";
 
-const ALLOWED_PRODUCT_DOMAINS = [
-  "shein.com",
-  "alibaba.com",
-  "1688.com",
-  "pinduoduo.com",
-  "yangkeduo.com",
-  "taobao.com",
-];
-
-function isAllowedProductUrl(url: URL): boolean {
-  return ALLOWED_PRODUCT_DOMAINS.some(
-    (domain) =>
-      url.hostname === domain ||
-      url.hostname.endsWith(`.${domain}`)
-  );
+// Le nom envoyé par le client est limité en taille (le prix, lui, vient toujours de l'extraction).
+function cleanProductName(value: unknown): string {
+  return typeof value === "string" ? value.trim().slice(0, 200) : "";
 }
 
 const externalProductService = new ExternalProductService();
@@ -47,38 +35,16 @@ export async function createInternationalQuoteController(
       });
     }
 
-    let parsedUrl: URL;
-
-    try {
-      parsedUrl = new URL(productUrl);
-    } catch {
-      return res.status(400).json({
-        success: false,
-        message: "URL du produit invalide."
-      });
-    }
-
-    if (parsedUrl.protocol !== "https:" && parsedUrl.protocol !== "http:") {
-      return res.status(400).json({
-        success: false,
-        message: "L'URL doit utiliser HTTP ou HTTPS."
-      });
-    }
-
-    if (!isAllowedProductUrl(parsedUrl)) {
-      return res.status(400).json({
-        success: false,
-        message: "Ce site n'est pas encore pris en charge.",
-      });
-    }
+    // Validation stricte de l'URL (domaine pris en charge, pas d'astuce d'adresse)
+    const parsedUrl = parseSupportedProductUrl(productUrl);
 
     // Extraire le produit depuis son URL pour récupérer son poids éventuel.
-    const product = await externalProductService.fetchProduct(productUrl);
+    const product = await externalProductService.fetchProduct(parsedUrl.href);
 
     const quote = await createInternationalQuote(
       userId,
-      productUrl,
-      productName || product.name,
+      parsedUrl.href,
+      cleanProductName(productName) || product.name,
       Number(product.price),
       subCategoryId,
       product.weightKg

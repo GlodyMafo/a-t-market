@@ -1,4 +1,5 @@
 import { ApifyClient } from "apify-client";
+import { APIFY_RUN_OPTIONS } from "./apifyLimits";
 
 export class SheinProductService {
   private client: ApifyClient;
@@ -48,7 +49,7 @@ export class SheinProductService {
 
     const run = await this.client
       .actor(this.actorId)
-      .call(input);
+      .call(input, APIFY_RUN_OPTIONS);
 
     console.log(
       "[Omkar SHEIN Scraper] Actor terminé."

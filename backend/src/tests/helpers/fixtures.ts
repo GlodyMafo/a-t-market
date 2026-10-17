@@ -96,3 +96,36 @@ export async function stockDe(productId: string) {
   const inv = await prisma.inventory.findUniqueOrThrow({ where: { productId } });
   return inv.quantity;
 }
+
+export async function creerSousCategorie(opts?: { weightKg?: string; active?: boolean }) {
+  const id = randomUUID();
+  const category = await prisma.category.create({
+    data: { name: `Cat ${id}`, slug: `cat-${id}`, isActive: opts?.active ?? true },
+  });
+  const sub = await prisma.subCategory.create({
+    data: {
+      name: `Sous ${id}`,
+      slug: `sous-${id}`,
+      categoryId: category.id,
+      isActive: opts?.active ?? true,
+    },
+  });
+  if (opts?.weightKg) {
+    await prisma.weightCatalog.create({
+      data: { subCategoryId: sub.id, estimatedWeightKg: opts.weightKg },
+    });
+  }
+  return sub;
+}
+
+export async function creerReglages(
+  opts?: { commission?: string; perKg?: string; fee?: string }
+) {
+  return prisma.globalSettings.create({
+    data: {
+      commissionRate: opts?.commission ?? "15",
+      chinaPricePerKg: opts?.perKg ?? "14",
+      fixedFee: opts?.fee ?? "8",
+    },
+  });
+}

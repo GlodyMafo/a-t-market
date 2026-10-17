@@ -12,7 +12,9 @@ export async function getPendingQuotes() {
 
     include: {
 
-      user: true,
+      user: {
+        select: { id: true, email: true, phone: true }
+      },
 
       subCategory: {
 
