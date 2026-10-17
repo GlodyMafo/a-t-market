@@ -1,5 +1,13 @@
 import { prisma } from "../lib/prisma";
-import { computeQuote } from "./pricing.service";
+import { Prisma } from "../../generated/prisma/client";
+import { computeQuote, normalizeWeightKg } from "./pricing.service";
+
+/** Un devis ne peut être payé que s'il est validé (automatiquement ou par un admin). */
+export const PAYABLE_QUOTE_STATUSES = ["AUTO_APPROVED", "APPROVED"] as const;
+
+export function isQuotePayable(status: string): boolean {
+  return (PAYABLE_QUOTE_STATUSES as readonly string[]).includes(status);
+}
 
 export async function createInternationalQuote(
   userId: string,
@@ -44,10 +52,13 @@ export async function createInternationalQuote(
   }
 
   // Poids : d'abord celui extrait du site, sinon l'estimation validée du catalogue.
-  let productWeight: number | null = null;
+  // On garde aussi la SOURCE du poids, pour savoir plus tard s'il est réel ou estimé.
+  let productWeight: Prisma.Decimal | null = null;
+  let weightSource: "EXTRACTED" | "CATALOG_ESTIMATE" | null = null;
 
   if (typeof extractedWeightKg === "number" && extractedWeightKg > 0) {
-    productWeight = extractedWeightKg;
+    productWeight = normalizeWeightKg(extractedWeightKg);
+    weightSource = "EXTRACTED";
   } else {
     const weightCatalog = await prisma.weightCatalog.findUnique({
       where: { subCategoryId },
@@ -58,7 +69,8 @@ export async function createInternationalQuote(
       Number.isFinite(Number(weightCatalog.estimatedWeightKg)) &&
       Number(weightCatalog.estimatedWeightKg) > 0
     ) {
-      productWeight = Number(weightCatalog.estimatedWeightKg);
+      productWeight = normalizeWeightKg(weightCatalog.estimatedWeightKg);
+      weightSource = "CATALOG_ESTIMATE";
     }
   }
 
@@ -77,6 +89,11 @@ export async function createInternationalQuote(
       productName,
       productPrice: quote.productPrice,
       productWeight,
+      weightSource,
+      currency: "USD",
+      commissionRate: settings.commissionRate,
+      chinaPricePerKg: settings.chinaPricePerKg,
+      fixedFee: settings.fixedFee,
       shippingCost: quote.shippingCost,
       customsCost: quote.customsCost,
       commissionCost: quote.commissionCost,

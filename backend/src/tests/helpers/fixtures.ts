@@ -129,3 +129,9 @@ export async function creerReglages(
     },
   });
 }
+
+export async function creerAdmin() {
+  return prisma.user.create({
+    data: { email: `admin-${randomUUID()}@test.local`, password: "x", role: "ADMIN" },
+  });
+}

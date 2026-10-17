@@ -1,146 +1,222 @@
+import { Prisma } from "../../generated/prisma/client";
 import { prisma } from "../lib/prisma";
+import { computeQuote, normalizeWeightKg } from "./pricing.service";
+
+type Tx = Prisma.TransactionClient;
+
+export class QuoteNotFoundError extends Error {
+  constructor() {
+    super("Devis introuvable");
+    this.name = "QuoteNotFoundError";
+  }
+}
+
+type QuoteRow = Prisma.InternationalQuoteGetPayload<object>;
+
+/** Photographie d'un devis (montants en texte) : c'est ce qu'on garde dans l'historique. */
+function snapshotOf(quote: QuoteRow): Prisma.InputJsonObject {
+  const text = (value: Prisma.Decimal | null) =>
+    value === null ? null : value.toString();
+
+  return {
+    status: quote.status,
+    currency: quote.currency,
+    productPrice: text(quote.productPrice),
+    productWeight: text(quote.productWeight),
+    weightSource: quote.weightSource,
+    shippingCost: text(quote.shippingCost),
+    customsCost: text(quote.customsCost),
+    commissionCost: text(quote.commissionCost),
+    totalPrice: text(quote.totalPrice),
+    commissionRate: text(quote.commissionRate),
+    chinaPricePerKg: text(quote.chinaPricePerKg),
+    fixedFee: text(quote.fixedFee),
+    adminNotes: quote.adminNotes,
+  };
+}
+
+/** Verrouille le devis : deux décisions admin simultanées passent l'une après l'autre. */
+async function lockQuote(tx: Tx, quoteId: string): Promise<QuoteRow> {
+  const rows = await tx.$queryRaw<{ id: string }[]>`
+    SELECT id FROM "InternationalQuote" WHERE id = ${quoteId} FOR UPDATE
+  `;
+
+  if (rows.length === 0) {
+    throw new QuoteNotFoundError();
+  }
+
+  return tx.internationalQuote.findUniqueOrThrow({ where: { id: quoteId } });
+}
 
 export async function getPendingQuotes() {
-
   return prisma.internationalQuote.findMany({
-
     where: {
-
-      status: "PENDING_REVIEW"
-
+      status: "PENDING_REVIEW",
     },
-
     include: {
-
       user: {
-        select: { id: true, email: true, phone: true }
+        select: { id: true, email: true, phone: true },
       },
-
       subCategory: {
-
         include: {
-
-          category: true
-
-        }
-
-      }
-
+          category: true,
+        },
+      },
     },
-
     orderBy: {
-
-      createdAt: "asc"
-
-    }
-
+      createdAt: "asc",
+    },
   });
-
 }
 
+export interface ApproveQuoteInput {
+  /** Poids réel renseigné par l'admin (kg, 2 décimales maximum). */
+  weightKg?: number;
+  adminNotes?: string;
+}
 
-
+/**
+ * Approuve un devis en attente. L'admin peut renseigner le poids (obligatoire si le devis
+ * n'en a pas). Le montant définitif est recalculé avec les réglages ACTUELS ; le devis
+ * provisoire d'origine reste intact dans l'historique (QuoteRevision).
+ */
 export async function approveQuote(
   quoteId: string,
-  adminNotes?: string
+  adminId: string,
+  input: ApproveQuoteInput = {}
 ) {
-  const quote = await prisma.internationalQuote.findUnique({
-    where: { id: quoteId },
-  });
+  return prisma.$transaction(async (tx) => {
+    const quote = await lockQuote(tx, quoteId);
 
-  if (!quote) {
-    throw new Error("Devis introuvable");
-  }
+    if (quote.status !== "PENDING_REVIEW") {
+      throw new Error(
+        "Seuls les devis en attente de validation peuvent être approuvés."
+      );
+    }
 
-  if (quote.status !== "PENDING_REVIEW") {
-    throw new Error(
-      "Seuls les devis en attente de validation peuvent être approuvés."
-    );
-  }
+    const settings = await tx.globalSettings.findFirst();
+    if (!settings) {
+      throw new Error("Configuration système introuvable");
+    }
 
-  if (
-    quote.productWeight === null ||
-    Number(quote.productWeight) <= 0
-  ) {
-    throw new Error(
-      "Impossible d'approuver ce devis : le poids du produit doit être déterminé."
-    );
-  }
+    const adminProvidedWeight =
+      input.weightKg !== undefined && input.weightKg !== null;
 
-  const settings = await prisma.globalSettings.findFirst();
+    if (adminProvidedWeight && new Prisma.Decimal(input.weightKg!).decimalPlaces() > 2) {
+      throw new Error("Le poids doit avoir au maximum 2 décimales (précision de 10 g).");
+    }
 
-  if (!settings) {
-    throw new Error("Configuration système introuvable");
-  }
+    const weight = adminProvidedWeight
+      ? normalizeWeightKg(input.weightKg!)
+      : quote.productWeight !== null
+        ? normalizeWeightKg(quote.productWeight)
+        : null;
 
-  const shippingCost =
-    Number(quote.productWeight) *
-    Number(settings.chinaPricePerKg);
+    if (weight === null) {
+      throw new Error(
+        "Impossible d'approuver ce devis : renseignez le poids du produit (weightKg)."
+      );
+    }
 
-  const customsCost = 0;
+    const breakdown = computeQuote({
+      productPrice: quote.productPrice,
+      weightKg: weight,
+      settings,
+    });
 
-  const commissionCost =
-    Number(quote.productPrice) *
-    (Number(settings.commissionRate) / 100);
+    const updated = await tx.internationalQuote.update({
+      where: { id: quoteId },
+      data: {
+        status: "APPROVED",
+        productWeight: weight,
+        weightSource: adminProvidedWeight ? "ADMIN" : quote.weightSource,
+        shippingCost: breakdown.shippingCost,
+        customsCost: breakdown.customsCost,
+        commissionCost: breakdown.commissionCost,
+        totalPrice: breakdown.totalPrice,
+        commissionRate: settings.commissionRate,
+        chinaPricePerKg: settings.chinaPricePerKg,
+        fixedFee: settings.fixedFee,
+        adminNotes: input.adminNotes ?? null,
+      },
+    });
 
-  const totalPrice =
-    Number(quote.productPrice) +
-    shippingCost +
-    commissionCost +
-    customsCost +
-    Number(settings.fixedFee);
+    await tx.quoteRevision.create({
+      data: {
+        quoteId,
+        adminId,
+        action: "APPROVED",
+        note: input.adminNotes ?? null,
+        snapshotBefore: snapshotOf(quote),
+        snapshotAfter: snapshotOf(updated),
+      },
+    });
 
-  return prisma.internationalQuote.update({
-    where: { id: quoteId },
-    data: {
-      shippingCost,
-      customsCost,
-      commissionCost,
-      totalPrice,
-      status: "APPROVED",
-      adminNotes: adminNotes ?? quote.adminNotes,
-    },
+    return updated;
   });
 }
 
-
-
+/**
+ * Rejette un devis. Possible seulement tant qu'il est en attente ou validé automatiquement :
+ * un devis déjà approuvé ou déjà rejeté ne change plus de statut.
+ * Un motif est obligatoire (il est visible par le client et conservé dans l'historique).
+ */
 export async function rejectQuote(
   quoteId: string,
-  adminNotes?: string
+  adminId: string,
+  adminNotes: string
 ) {
+  const note = typeof adminNotes === "string" ? adminNotes.trim() : "";
 
-  const quote =
-    await prisma.internationalQuote.findUnique({
-
-      where: {
-        id: quoteId
-      }
-
-    });
-
-  if (!quote) {
-
-    throw new Error(
-      "Devis introuvable"
-    );
-
+  if (note.length < 3 || note.length > 500) {
+    throw new Error("Un motif de rejet (3 à 500 caractères) est obligatoire.");
   }
 
-  return prisma.internationalQuote.update({
+  return prisma.$transaction(async (tx) => {
+    const quote = await lockQuote(tx, quoteId);
 
-    where: {
-      id: quoteId
-    },
-
-    data: {
-
-      status: "REJECTED",
-
-      adminNotes
-
+    if (quote.status !== "PENDING_REVIEW" && quote.status !== "AUTO_APPROVED") {
+      throw new Error(
+        "Ce devis ne peut plus être rejeté : il est déjà approuvé ou rejeté."
+      );
     }
 
+    const updated = await tx.internationalQuote.update({
+      where: { id: quoteId },
+      data: { status: "REJECTED", adminNotes: note },
+    });
+
+    await tx.quoteRevision.create({
+      data: {
+        quoteId,
+        adminId,
+        action: "REJECTED",
+        note,
+        snapshotBefore: snapshotOf(quote),
+        snapshotAfter: snapshotOf(updated),
+      },
+    });
+
+    return updated;
+  });
+}
+
+/** Historique complet des décisions admin sur un devis, du plus ancien au plus récent. */
+export async function getQuoteHistory(quoteId: string) {
+  const quote = await prisma.internationalQuote.findUnique({
+    where: { id: quoteId },
+    select: { id: true },
   });
 
+  if (!quote) {
+    throw new QuoteNotFoundError();
+  }
+
+  return prisma.quoteRevision.findMany({
+    where: { quoteId },
+    include: {
+      admin: { select: { id: true, email: true } },
+    },
+    orderBy: { createdAt: "asc" },
+  });
 }

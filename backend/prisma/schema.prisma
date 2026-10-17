@@ -74,6 +74,17 @@ enum InventoryMovementType {
   OUT
 }
 
+enum QuoteWeightSource {
+  EXTRACTED
+  CATALOG_ESTIMATE
+  ADMIN
+}
+
+enum QuoteRevisionAction {
+  APPROVED
+  REJECTED
+}
+
 enum QuoteStatus {
   AUTO_APPROVED
   PENDING_REVIEW
@@ -102,6 +113,8 @@ model User {
   orders Order[]
 
   quotes InternationalQuote[]
+
+  quoteRevisions QuoteRevision[]
 
   createdAt DateTime @default(now())
 
@@ -338,6 +351,13 @@ model InternationalQuote {
 
   status QuoteStatus @default(PENDING_REVIEW)
 
+  currency String @default("USD")
+  weightSource QuoteWeightSource?
+  commissionRate Decimal? @db.Decimal(10, 2)
+  chinaPricePerKg Decimal? @db.Decimal(10, 2)
+  fixedFee Decimal? @db.Decimal(10, 2)
+  revisions QuoteRevision[]
+
   adminNotes String?
 
   totalPrice Decimal @db.Decimal(10, 2)
@@ -467,4 +487,19 @@ model WeightCatalog {
   createdAt DateTime @default(now())
 
   updatedAt DateTime @updatedAt
+}
+
+model QuoteRevision {
+  id String @id @default(cuid())
+  quoteId String
+  quote InternationalQuote @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+  adminId String
+  admin User @relation(fields: [adminId], references: [id], onDelete: Restrict)
+  action QuoteRevisionAction
+  note String?
+  snapshotBefore Json
+  snapshotAfter Json
+  createdAt DateTime @default(now())
+
+  @@index([quoteId])
 }

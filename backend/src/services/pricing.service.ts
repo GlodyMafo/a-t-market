@@ -29,6 +29,22 @@ const round2 = (value: Decimal) =>
   value.toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
 
 /**
+ * Les poids sont stockés avec 2 décimales (10 g). On normalise AVANT le calcul, pour que le
+ * poids affiché/stocké soit exactement celui utilisé. Arrondi au 10 g SUPÉRIEUR :
+ * on ne facture jamais en dessous du poids réel, et un poids positif ne tombe jamais à 0.
+ */
+export function normalizeWeightKg(value: number | string | Decimal): Decimal {
+  const weight = new Decimal(value);
+
+  if (!weight.isFinite() || weight.lte(0) || weight.gt(MAX_WEIGHT_KG)) {
+    throw new Error("Le poids du produit doit être valide.");
+  }
+
+  return weight.toDecimalPlaces(2, Decimal.ROUND_UP);
+}
+
+
+/**
  * Calcule le prix total livré d'un produit international.
  *
  *   total = prix produit + transport + commission + frais fixes
