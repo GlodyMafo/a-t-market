@@ -130,6 +130,12 @@ export async function updateCartItemQuantity(
     throw new Error("Article introuvable ou accès refusé");
   }
 
+  if (!item.product) {
+    throw new Error(
+      "La quantité d'un devis international ne peut pas être modifiée (1 article par devis)."
+    );
+  }
+
   await assertAvailable(item.product, quantity);
 
   return prisma.cartItem.update({

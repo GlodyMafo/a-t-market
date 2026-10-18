@@ -29,7 +29,17 @@ export async function createOrderFromCart(userId: string) {
       throw new Error("Le panier est vide");
     }
 
-    for (const item of cart.items) {
+    // Les devis internationaux seront gérés par la commande hybride (partie B du lot 4).
+    const items = cart.items.map((item) => {
+      if (!item.product || !item.productId) {
+        throw new Error(
+          "Les devis internationaux ne peuvent pas encore être commandés."
+        );
+      }
+      return { ...item, product: item.product, productId: item.productId };
+    });
+
+    for (const item of items) {
       if (!item.product.isActive) {
         throw new Error(
           `Le produit « ${item.product.name} » n'est plus disponible`
@@ -188,7 +198,7 @@ export async function getOrderById(
       }
 
     });
-    
+
   if (!order) {
 
     throw new Error(

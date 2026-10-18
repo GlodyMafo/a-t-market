@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import { env } from "./config/env";
 
 import healthRoutes from "./routes/health.routes";
 import productRoutes from "./routes/product.routes";
@@ -20,6 +21,11 @@ import externalProductRoutes from "./routes/externalProduct.routes";
 
 
 const app = express();
+
+// Derrière un proxy (Render) : sans cela, tous les visiteurs auraient la même adresse IP.
+if (env.TRUST_PROXY_HOPS > 0) {
+  app.set("trust proxy", env.TRUST_PROXY_HOPS);
+}
 
 app.use(cors());
 

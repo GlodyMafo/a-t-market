@@ -1,6 +1,7 @@
 import { prisma } from "../lib/prisma";
-import { Prisma } from "../../generated/prisma/client";
-import { computeQuote, normalizeWeightKg } from "./pricing.service";
+import { computeQuote } from "./pricing.service";
+import { resolveQuoteWeight } from "./quoteWeight";
+import { QUOTE_VALIDITY_DAYS } from "../config/quotes";
 
 /** Un devis ne peut être payé que s'il est validé (automatiquement ou par un admin). */
 export const PAYABLE_QUOTE_STATUSES = ["AUTO_APPROVED", "APPROVED"] as const;
@@ -9,13 +10,38 @@ export function isQuotePayable(status: string): boolean {
   return (PAYABLE_QUOTE_STATUSES as readonly string[]).includes(status);
 }
 
+/** Date de fin de validité d'un prix, à partir de la date donnée. */
+export function quoteValidUntil(from: Date = new Date()): Date {
+  return new Date(from.getTime() + QUOTE_VALIDITY_DAYS * 24 * 3600 * 1000);
+}
+
+/**
+ * Un devis est périmé à sa date de fin de validité. Un ancien devis (créé avant l'existence
+ * de cette date) est considéré valable QUOTE_VALIDITY_DAYS jours après sa création.
+ */
+export function isQuoteExpired(
+  quote: { expiresAt: Date | null; createdAt: Date },
+  now: Date = new Date()
+): boolean {
+  const limit = quote.expiresAt ?? quoteValidUntil(quote.createdAt);
+  return now.getTime() >= limit.getTime();
+}
+
+/** Texte libre du client (taille, couleur...) : nettoyé et limité à 200 caractères. */
+export function cleanQuoteOptions(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const cleaned = value.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 200);
+  return cleaned.length > 0 ? cleaned : null;
+}
+
 export async function createInternationalQuote(
   userId: string,
   productUrl: string,
   productName: string,
   productPrice: number,
   subCategoryId: string,
-  extractedWeightKg?: number
+  extractedWeightKg?: number,
+  options?: string | null
 ) {
   const settings = await prisma.globalSettings.findFirst();
 
@@ -51,28 +77,12 @@ export async function createInternationalQuote(
     throw new Error("Le poids du produit doit être valide.");
   }
 
-  // Poids : d'abord celui extrait du site, sinon l'estimation validée du catalogue.
+  // Poids : extrait du site, sinon estimation validée du catalogue, sinon inconnu.
   // On garde aussi la SOURCE du poids, pour savoir plus tard s'il est réel ou estimé.
-  let productWeight: Prisma.Decimal | null = null;
-  let weightSource: "EXTRACTED" | "CATALOG_ESTIMATE" | null = null;
-
-  if (typeof extractedWeightKg === "number" && extractedWeightKg > 0) {
-    productWeight = normalizeWeightKg(extractedWeightKg);
-    weightSource = "EXTRACTED";
-  } else {
-    const weightCatalog = await prisma.weightCatalog.findUnique({
-      where: { subCategoryId },
-    });
-
-    if (
-      weightCatalog &&
-      Number.isFinite(Number(weightCatalog.estimatedWeightKg)) &&
-      Number(weightCatalog.estimatedWeightKg) > 0
-    ) {
-      productWeight = normalizeWeightKg(weightCatalog.estimatedWeightKg);
-      weightSource = "CATALOG_ESTIMATE";
-    }
-  }
+  const { weight: productWeight, source: weightSource } = await resolveQuoteWeight(
+    extractedWeightKg,
+    subCategoryId
+  );
 
   const quote = computeQuote({
     productPrice,
@@ -100,6 +110,8 @@ export async function createInternationalQuote(
       totalPrice: quote.totalPrice,
       subCategoryId,
       status,
+      options: cleanQuoteOptions(options),
+      expiresAt: status === "AUTO_APPROVED" ? quoteValidUntil() : null,
       adminNotes: quote.isProvisional
         ? "Poids inconnu : total provisoire, validation admin requise avant confirmation."
         : null,

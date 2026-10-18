@@ -1,5 +1,6 @@
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { AuthRequest } from "./auth.middleware";
+import { PREVIEW_RATE_LIMIT_PER_10_MIN } from "../config/quotes";
 
 export const webhookRateLimiter = rateLimit({
 
@@ -41,5 +42,21 @@ export const extractionRateLimiter = rateLimit({
   message: {
     success: false,
     message: "Trop de demandes d'extraction. Réessayez dans quelques minutes."
+  }
+});
+
+/**
+ * Aperçu public (sans compte) : limité par adresse IP, car l'extraction est payante.
+ * Derrière un proxy (Render), TRUST_PROXY_HOPS doit être renseigné pour lire la vraie IP.
+ */
+export const previewRateLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  limit: PREVIEW_RATE_LIMIT_PER_10_MIN,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => ipKeyGenerator(req.ip ?? ""),
+  message: {
+    success: false,
+    message: "Trop d'aperçus demandés. Réessayez dans quelques minutes."
   }
 });

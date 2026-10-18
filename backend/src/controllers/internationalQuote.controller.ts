@@ -18,7 +18,7 @@ export async function createInternationalQuoteController(
   res: Response
 ) {
   try {
-    const { productUrl, productName, productPrice, subCategoryId } = req.body;
+    const { productUrl, productName, productPrice, subCategoryId, options } = req.body;
     const userId = (req as import("../middlewares/auth.middleware").AuthRequest).user?.userId;
 
     if (!userId) {
@@ -41,13 +41,19 @@ export async function createInternationalQuoteController(
     // Extraire le produit depuis son URL pour récupérer son poids éventuel.
     const product = await externalProductService.fetchProduct(parsedUrl.href);
 
+    // Les montants sont en dollars : on refuse toute autre devise au lieu de l'interpréter comme des USD.
+    if (String(product.currency).toUpperCase() !== "USD") {
+      throw new Error("La devise de ce produit n'est pas prise en charge.");
+    }
+
     const quote = await createInternationalQuote(
       userId,
       parsedUrl.href,
       cleanProductName(productName) || product.name,
       Number(product.price),
       subCategoryId,
-      product.weightKg
+      product.weightKg,
+      options
     );
 
     return res.status(201).json({

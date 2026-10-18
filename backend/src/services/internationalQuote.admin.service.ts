@@ -1,6 +1,7 @@
 import { Prisma } from "../../generated/prisma/client";
 import { prisma } from "../lib/prisma";
 import { computeQuote, normalizeWeightKg } from "./pricing.service";
+import { quoteValidUntil } from "./internationalQuote.service";
 
 type Tx = Prisma.TransactionClient;
 
@@ -32,6 +33,8 @@ function snapshotOf(quote: QuoteRow): Prisma.InputJsonObject {
     chinaPricePerKg: text(quote.chinaPricePerKg),
     fixedFee: text(quote.fixedFee),
     adminNotes: quote.adminNotes,
+    options: quote.options,
+    expiresAt: quote.expiresAt ? quote.expiresAt.toISOString() : null,
   };
 }
 
@@ -138,6 +141,7 @@ export async function approveQuote(
         chinaPricePerKg: settings.chinaPricePerKg,
         fixedFee: settings.fixedFee,
         adminNotes: input.adminNotes ?? null,
+        expiresAt: quoteValidUntil(),
       },
     });
 

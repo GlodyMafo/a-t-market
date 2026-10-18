@@ -30,6 +30,8 @@ const envSchema = z.object({
   ),
   PAWAPAY_WEBHOOK_SECRET: z.string().optional(),
   APIFY_API_TOKEN: requis("APIFY_API_TOKEN"),
+  // Nombre de proxys devant le serveur (1 sur Render) : nécessaire pour lire la vraie IP des visiteurs.
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
 });
 
 const parsed = envSchema.safeParse(process.env);
