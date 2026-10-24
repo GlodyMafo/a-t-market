@@ -1,5 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { prisma } from "../../lib/prisma";
+import { createInternationalQuote } from "../../services/internationalQuote.service";
+import {
+  QuotePreviewTicketData,
+  signQuotePreviewTicket,
+} from "../../services/quotePreviewTicket";
 
 export async function creerCommande(opts?: {
   total?: string;
@@ -134,4 +139,52 @@ export async function creerAdmin() {
   return prisma.user.create({
     data: { email: `admin-${randomUUID()}@test.local`, password: "x", role: "ADMIN" },
   });
+}
+
+export async function assurerReglages() {
+  if ((await prisma.globalSettings.count()) === 0) {
+    await creerReglages();
+  }
+}
+
+/**
+ * Devis SHEIN à 20 $. Avec poids (par défaut) : AUTO_APPROVED, total 38 $ (transport 7, commission 3, frais 8).
+ * Sans poids : PENDING_REVIEW, total provisoire 31 $.
+ */
+export async function creerDevis(
+  userId: string,
+  opts?: { avecPoids?: boolean; price?: number; name?: string }
+) {
+  await assurerReglages();
+  const sub = await creerSousCategorie(opts?.avecPoids === false ? undefined : { weightKg: "0.5" });
+  return createInternationalQuote(
+    userId,
+    `https://www.shein.com/p-${randomUUID()}.html`,
+    opts?.name ?? "Robe fleurie",
+    opts?.price ?? 20,
+    sub.id
+  );
+}
+
+/** Ticket d'aperçu signé (20 $, 0,5 kg, taux 15 % / 14 $ / 8 $) pour la sous-catégorie donnée. */
+export function ticketPour(
+  subCategoryId: string,
+  opts?: { over?: Partial<QuotePreviewTicketData>; now?: Date }
+) {
+  return signQuotePreviewTicket(
+    {
+      productUrl: "https://www.shein.com/x-p-1.html",
+      productName: "Robe fleurie",
+      imageUrl: null,
+      productPrice: "20",
+      weightKg: "0.5",
+      weightSource: "CATALOG_ESTIMATE",
+      subCategoryId,
+      commissionRate: "15",
+      chinaPricePerKg: "14",
+      fixedFee: "8",
+      ...opts?.over,
+    },
+    opts?.now
+  );
 }

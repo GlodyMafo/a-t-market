@@ -1,10 +1,22 @@
+import { Prisma } from "../../generated/prisma/client";
 import { prisma } from "../lib/prisma";
 import { reserveStockForOrder } from "./inventory.service";
+import { activeOrderQuoteIds, quoteIssue, quoteIssueMessage } from "./quoteEligibility";
+import { quoteSnapshot } from "./quoteSnapshot";
 
-// Les montants sont calculés en centimes pour éviter les erreurs de virgule flottante.
-const toCents = (value: unknown) => Math.round(Number(value) * 100);
+const Decimal = Prisma.Decimal;
 
-// Create order from user cart
+/**
+ * Crée une commande à partir du panier : produits locaux ET devis internationaux.
+ *
+ * - Produits locaux : le stock est réservé (échec => tout est annulé).
+ * - Devis : chacun doit être PAYABLE (validé, non périmé, non déjà commandé) : règle D.
+ *   Son prix est alors FIGÉ dans la commande (copie dans quoteSnapshot).
+ * - Un seul article refusé bloque la commande entière, avec un message qui explique pourquoi.
+ *
+ * Répartition des montants : shippingAmount = transport des devis ;
+ * productsAmount = tout le reste ; totalAmount = la somme.
+ */
 export async function createOrderFromCart(userId: string) {
   const cartRef = await prisma.cart.findUnique({
     where: { userId },
@@ -29,42 +41,93 @@ export async function createOrderFromCart(userId: string) {
       throw new Error("Le panier est vide");
     }
 
-    // Les devis internationaux seront gérés par la commande hybride (partie B du lot 4).
-    const items = cart.items.map((item) => {
-      if (!item.product || !item.productId) {
-        throw new Error(
-          "Les devis internationaux ne peuvent pas encore être commandés."
-        );
-      }
-      return { ...item, product: item.product, productId: item.productId };
-    });
+    // --- Devis : verrou, puis relecture à jour (un admin a pu changer le statut entre-temps) ---
+    const quoteIds = cart.items
+      .flatMap((item) => (item.quoteId ? [item.quoteId] : []))
+      .sort();
 
-    for (const item of items) {
-      if (!item.product.isActive) {
-        throw new Error(
-          `Le produit « ${item.product.name} » n'est plus disponible`
+    if (quoteIds.length > 0) {
+      await tx.$queryRaw`
+        SELECT id FROM "InternationalQuote"
+        WHERE id IN (${Prisma.join(quoteIds)})
+        ORDER BY id
+        FOR UPDATE
+      `;
+    }
+
+    const quotes = await tx.internationalQuote.findMany({
+      where: { id: { in: quoteIds }, userId },
+    });
+    const quoteById = new Map(quotes.map((q) => [q.id, q]));
+    const ordered = await activeOrderQuoteIds(tx, quoteIds);
+
+    // --- Contrôle de TOUS les articles : on signale tous les problèmes d'un coup ---
+    const problems: string[] = [];
+
+    for (const item of cart.items) {
+      if (item.quoteId) {
+        const quote = quoteById.get(item.quoteId);
+        if (!quote) {
+          problems.push("Un devis de votre panier est introuvable.");
+          continue;
+        }
+        const issue = quoteIssue(quote, ordered.has(quote.id));
+        if (issue) problems.push(quoteIssueMessage(issue, quote.productName));
+      } else if (!item.product || !item.product.isActive) {
+        problems.push(
+          `Le produit « ${item.product?.name ?? "inconnu"} » n'est plus disponible`
         );
       }
     }
 
-    const lines = cart.items.map((item) => {
-      const basePriceCents = toCents(item.product.price);
-      const marginCents = toCents(item.product.margin);
-      return {
-        item,
-        basePrice: basePriceCents / 100,
-        margin: marginCents / 100,
-        price: (basePriceCents + marginCents) / 100,
-        lineCents: (basePriceCents + marginCents) * item.quantity,
-      };
-    });
+    if (problems.length > 0) {
+      throw new Error(problems.join(" "));
+    }
 
-    const productsAmount =
-      lines.reduce((sum, l) => sum + l.lineCents, 0) / 100;
+    // --- Montants, en décimal exact ---
+    let productsAmount = new Decimal(0);
+    let shippingAmount = new Decimal(0);
 
-    // Transport calculé plus tard
-    const shippingAmount = 0;
-    const totalAmount = productsAmount + shippingAmount;
+    const itemsData: Prisma.OrderItemCreateWithoutOrderInput[] = [];
+    const stockLines: { productId: string; quantity: number }[] = [];
+
+    for (const item of cart.items) {
+      if (item.quoteId) {
+        const quote = quoteById.get(item.quoteId)!;
+        const shippingPart = quote.shippingCost.plus(quote.customsCost);
+
+        shippingAmount = shippingAmount.plus(shippingPart);
+        productsAmount = productsAmount.plus(quote.totalPrice.minus(shippingPart));
+
+        itemsData.push({
+          quote: { connect: { id: quote.id } },
+          quantity: 1,
+          basePrice: quote.productPrice,
+          margin: quote.totalPrice.minus(quote.productPrice),
+          price: quote.totalPrice,
+          quoteSnapshot: quoteSnapshot(quote),
+        });
+      } else {
+        const product = item.product!;
+        const unitPrice = new Decimal(product.price).plus(product.margin);
+
+        productsAmount = productsAmount.plus(unitPrice.mul(item.quantity));
+
+        itemsData.push({
+          product: { connect: { id: product.id } },
+          quantity: item.quantity,
+          basePrice: product.price,
+          margin: product.margin,
+          price: unitPrice,
+        });
+
+        if (product.type === "LOCAL") {
+          stockLines.push({ productId: product.id, quantity: item.quantity });
+        }
+      }
+    }
+
+    const totalAmount = productsAmount.plus(shippingAmount);
 
     const createdOrder = await tx.order.create({
       data: {
@@ -73,30 +136,13 @@ export async function createOrderFromCart(userId: string) {
         shippingAmount,
         totalAmount,
         status: "PENDING_PAYMENT",
-        items: {
-          create: lines.map((l) => ({
-            productId: l.item.productId,
-            quantity: l.item.quantity,
-            basePrice: l.basePrice,
-            margin: l.margin,
-            price: l.price,
-          })),
-        },
+        items: { create: itemsData },
       },
       include: { items: true },
     });
 
     // Réservation du stock des produits locaux (échoue => tout est annulé)
-    await reserveStockForOrder(
-      tx,
-      createdOrder.id,
-      cart.items
-        .filter((item) => item.product.type === "LOCAL")
-        .map((item) => ({
-          productId: item.productId,
-          quantity: item.quantity,
-        }))
-    );
+    await reserveStockForOrder(tx, createdOrder.id, stockLines);
 
     await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
 

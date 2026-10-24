@@ -1,7 +1,11 @@
 import { Prisma } from "../../generated/prisma/client";
 import { prisma } from "../lib/prisma";
 import { computeQuote, normalizeWeightKg } from "./pricing.service";
+import { activeOrderQuoteIds } from "./quoteEligibility";
+import { QuoteRow, quoteSnapshot as snapshotOf } from "./quoteSnapshot";
 import { quoteValidUntil } from "./internationalQuote.service";
+
+
 
 type Tx = Prisma.TransactionClient;
 
@@ -12,31 +16,6 @@ export class QuoteNotFoundError extends Error {
   }
 }
 
-type QuoteRow = Prisma.InternationalQuoteGetPayload<object>;
-
-/** Photographie d'un devis (montants en texte) : c'est ce qu'on garde dans l'historique. */
-function snapshotOf(quote: QuoteRow): Prisma.InputJsonObject {
-  const text = (value: Prisma.Decimal | null) =>
-    value === null ? null : value.toString();
-
-  return {
-    status: quote.status,
-    currency: quote.currency,
-    productPrice: text(quote.productPrice),
-    productWeight: text(quote.productWeight),
-    weightSource: quote.weightSource,
-    shippingCost: text(quote.shippingCost),
-    customsCost: text(quote.customsCost),
-    commissionCost: text(quote.commissionCost),
-    totalPrice: text(quote.totalPrice),
-    commissionRate: text(quote.commissionRate),
-    chinaPricePerKg: text(quote.chinaPricePerKg),
-    fixedFee: text(quote.fixedFee),
-    adminNotes: quote.adminNotes,
-    options: quote.options,
-    expiresAt: quote.expiresAt ? quote.expiresAt.toISOString() : null,
-  };
-}
 
 /** Verrouille le devis : deux décisions admin simultanées passent l'une après l'autre. */
 async function lockQuote(tx: Tx, quoteId: string): Promise<QuoteRow> {
@@ -83,6 +62,8 @@ export interface ApproveQuoteInput {
  * n'en a pas). Le montant définitif est recalculé avec les réglages ACTUELS ; le devis
  * provisoire d'origine reste intact dans l'historique (QuoteRevision).
  */
+
+
 export async function approveQuote(
   quoteId: string,
   adminId: string,
@@ -178,6 +159,14 @@ export async function rejectQuote(
 
   return prisma.$transaction(async (tx) => {
     const quote = await lockQuote(tx, quoteId);
+
+    // Un devis déjà dans une commande (non annulée) est figé : le client l'a payé ou va le payer.
+    const ordered = await activeOrderQuoteIds(tx, [quoteId]);
+    if (ordered.has(quoteId)) {
+      throw new Error(
+        "Ce devis est déjà utilisé dans une commande : il ne peut plus être rejeté."
+      );
+    }
 
     if (quote.status !== "PENDING_REVIEW" && quote.status !== "AUTO_APPROVED") {
       throw new Error(
