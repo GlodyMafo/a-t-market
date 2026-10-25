@@ -1,5 +1,7 @@
 import { prisma } from "../lib/prisma";
-import { TrackingStatus } from "../../generated/prisma/client";
+import { Prisma } from "../../generated/prisma/client";
+import { allowedNextStatuses, getOrderKind } from "./orderFlow";
+import { ConflictError, NotFoundError } from "../utils/appError";
 
 interface UpdateProductData {
   name?: string;
@@ -59,112 +61,32 @@ export async function getAllOrders() {
 
 }
 
-
-export async function getOrderDetails(
-  orderId: string
-) {
-
-  const order =
-    await prisma.order.findUnique({
-
-      where: {
-        id: orderId
+export async function getOrderDetails(orderId: string) {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: {
+      user: { select: { id: true, email: true, phone: true } },
+      items: { include: { product: { include: { images: true } }, quote: true } },
+      payments: true,
+      trackingEvents: {
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        include: { actor: { select: { id: true, email: true } } },
       },
+    },
+  });
 
-      include: {
+  if (!order) throw new NotFoundError("Commande introuvable");
 
-        user: {
+  const kind = getOrderKind(order.items);
+  const current = order.trackingEvents.at(-1)?.status ?? null;
 
-          select: {
-            id: true,
-            email: true,
-            phone: true
-          }
-
-        },
-
-        items: {
-
-          include: {
-
-            product: {
-
-              include: {
-                images: true
-              }
-
-            }
-
-          }
-
-        },
-
-        payments: true,
-
-        trackingEvents: {
-
-          orderBy: {
-            createdAt: "asc"
-          }
-
-        }
-
-      }
-
-    });
-
-  if (!order) {
-
-    throw new Error(
-      "Commande introuvable"
-    );
-
-  }
-
-  return order;
-
-}
-
-export async function addTrackingToOrder(
-  orderId: string,
-  status: TrackingStatus,
-  message?: string
-) {
-
-  const order =
-    await prisma.order.findUnique({
-
-      where: {
-        id: orderId
-      }
-
-    });
-
-  if (!order) {
-
-    throw new Error(
-      "Commande introuvable"
-    );
-
-  }
-
-  const event =
-    await prisma.trackingEvent.create({
-
-      data: {
-
-        orderId,
-
-        status,
-
-        message
-
-      }
-
-    });
-
-  return event;
-
+  return {
+    ...order,
+    kind,
+    currentTrackingStatus: current,
+    // Liste vide tant que la commande n'est pas PAID : l'interface sait quoi proposer.
+    allowedNextStatuses: order.status === "PAID" ? allowedNextStatuses(kind, current) : [],
+  };
 }
 
 export async function getAdminStats() {
@@ -178,18 +100,14 @@ export async function getAdminStats() {
   const paidOrders =
     await prisma.order.count({
 
-      where: {
-        status: "PAID"
-      }
+      where: { status: { in: ["PAID", "DELIVERED"] } }
 
     });
 
   const revenueResult =
     await prisma.order.aggregate({
 
-      where: {
-        status: "PAID"
-      },
+     where: { status: { in: ["PAID", "DELIVERED"] } },
 
       _sum: {
         totalAmount: true
@@ -446,5 +364,110 @@ export async function restockInventory(
     return tx.inventory.findUniqueOrThrow({
       where: { productId }
     });
+  });
+}
+
+
+// ---------- Suppression d'un produit ----------
+
+export async function deleteProduct(productId: string) {
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const product = await tx.product.findUnique({
+        where: { id: productId },
+        select: { id: true },
+      });
+      if (!product) throw new NotFoundError("Produit introuvable");
+
+      // Un produit déjà commandé garde sa trace dans les commandes : on l'archive.
+      const ordered = await tx.orderItem.count({ where: { productId } });
+      if (ordered > 0) {
+        await tx.product.update({ where: { id: productId }, data: { isActive: false } });
+        return {
+          deleted: false,
+          archived: true,
+          message:
+            "Ce produit figure dans des commandes : il ne peut pas être supprimé. Il a été désactivé (invisible côté client).",
+        };
+      }
+
+      await tx.cartItem.deleteMany({ where: { productId } });
+      await tx.product.delete({ where: { id: productId } });
+      return { deleted: true, archived: false, message: "Produit supprimé" };
+    });
+  } catch (error: any) {
+    // Le produit vient d'être commandé pendant la suppression.
+    if (error?.code === "P2003") {
+      throw new ConflictError(
+        "Le produit vient d'être commandé : réessaie pour l'archiver.",
+        "PRODUCT_IN_USE"
+      );
+    }
+    throw error;
+  }
+}
+
+// ---------- Tableau de bord ----------
+
+// Payées, mais rien n'a encore été fait au-delà de la validation.
+const sansSuite: Prisma.OrderWhereInput["trackingEvents"] = {
+  none: { status: { not: "ORDER_VALIDATED" } },
+};
+
+const aAcheter: Prisma.OrderWhereInput = {
+  status: "PAID",
+  items: { some: { quoteId: { not: null } } },
+  trackingEvents: sansSuite,
+};
+
+const aPreparer: Prisma.OrderWhereInput = {
+  status: "PAID",
+  items: { none: { quoteId: { not: null } } },
+  trackingEvents: sansSuite,
+};
+
+export async function getAdminDashboard() {
+  const [
+    internationalToPurchase,
+    quotesPendingReview,
+    localToPrepare,
+    partiallyPaid,
+    outOfStockProducts,
+  ] = await Promise.all([
+    prisma.order.count({ where: aAcheter }),
+    prisma.internationalQuote.count({ where: { status: "PENDING_REVIEW" } }),
+    prisma.order.count({ where: aPreparer }),
+    prisma.order.count({ where: { status: "PARTIALLY_PAID" } }),
+    prisma.product.count({
+      where: { type: "LOCAL", isActive: true, inventory: { quantity: { lte: 0 } } },
+    }),
+  ]);
+
+  return {
+    internationalToPurchase,
+    quotesPendingReview,
+    localToPrepare,
+    partiallyPaid,
+    outOfStockProducts,
+  };
+}
+
+/** Commandes payées dont les articles internationaux restent à acheter (les plus anciennes d'abord). */
+export async function getInternationalOrdersToPurchase() {
+  return prisma.order.findMany({
+    where: aAcheter,
+    orderBy: { createdAt: "asc" },
+    take: 100,
+    select: {
+      id: true,
+      createdAt: true,
+      totalAmount: true,
+      user: { select: { id: true, email: true, phone: true } },
+      // quoteSnapshot = copie figée : lien, nom, options et prix tels que le client les a payés.
+      items: {
+        where: { quoteId: { not: null } },
+        select: { id: true, quantity: true, price: true, quoteSnapshot: true },
+      },
+    },
   });
 }

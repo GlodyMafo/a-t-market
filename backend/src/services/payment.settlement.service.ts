@@ -157,6 +157,20 @@ export async function settlePaymentByDepositId(
         where: { id: payment.orderId },
         data: { status: newStatus },
       });
+
+      // Premier événement du suivi, créé une seule fois : on n'arrive ici
+      // que lorsque la commande passe réellement à PAID.
+      if (newStatus === "PAID") {
+        await tx.trackingEvent.create({
+          data: {
+            orderId: payment.orderId,
+            status: "ORDER_VALIDATED",
+            message: "Paiement reçu : commande validée",
+          },
+        });
+      }
+      
+
     } else {
       console.error(
         `ALERTE PAIEMENT : paiement ${payment.id} reçu pour une commande au statut ${order?.status}`

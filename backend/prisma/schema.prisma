@@ -116,6 +116,8 @@ model User {
 
   quoteRevisions QuoteRevision[]
 
+  trackingEventsPosted TrackingEvent[] @relation("TrackingEventActor")
+
   createdAt DateTime @default(now())
 
   updatedAt DateTime @updatedAt
@@ -334,9 +336,17 @@ model TrackingEvent {
 
   status TrackingStatus
 
+  fromStatus TrackingStatus?
+
+  actorId String?
+
+  actor User? @relation("TrackingEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+
   message String?
 
   createdAt DateTime @default(now())
+
+  @@index([orderId, createdAt])
 }
 
 model InternationalQuote {

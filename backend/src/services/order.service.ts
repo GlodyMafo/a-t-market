@@ -239,7 +239,10 @@ export async function getOrderById(
 
         payments: true,
 
-        trackingEvents: true
+        trackingEvents: {
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+          select: { id: true, status: true, message: true, createdAt: true }
+        }
 
       }
 

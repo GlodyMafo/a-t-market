@@ -1,91 +1,19 @@
 import { prisma } from "../lib/prisma";
+import { TRACKING_LABELS } from "./orderFlow";
+import { NotFoundError } from "../utils/appError";
 
-export async function getTrackingByOrder(
-  orderId: string,
-  userId: string
-) {
-
-  const order =
-    await prisma.order.findFirst({
-
-      where: {
-        id: orderId,
-        userId
+export async function getTrackingByOrder(orderId: string, userId: string) {
+  const order = await prisma.order.findFirst({
+    where: { id: orderId, userId },
+    select: {
+      trackingEvents: {
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        select: { id: true, status: true, message: true, createdAt: true },
       },
+    },
+  });
 
-      include: {
+  if (!order) throw new NotFoundError("Commande introuvable");
 
-        trackingEvents: {
-
-          orderBy: {
-            createdAt: "asc"
-          }
-
-        }
-
-      }
-
-    });
-
-  if (!order) {
-
-    throw new Error(
-      "Commande introuvable"
-    );
-
-  }
-
-  return order.trackingEvents;
-
-}
-
-
-export async function addTrackingEvent(
-  orderId: string,
-  status:
-    | "ORDER_VALIDATED"
-    | "PURCHASED"
-    | "PREPARING"
-    | "IN_CHINA"
-    | "IN_TRANSIT"
-    | "ARRIVED_DRC"
-    | "OUT_FOR_DELIVERY"
-    | "DELIVERED",
-  message?: string
-) {
-
-  const order =
-    await prisma.order.findUnique({
-
-      where: {
-        id: orderId
-      }
-
-    });
-
-  if (!order) {
-
-    throw new Error(
-      "Commande introuvable"
-    );
-
-  }
-
-  const event =
-    await prisma.trackingEvent.create({
-
-      data: {
-
-        orderId,
-
-        status,
-
-        message
-
-      }
-
-    });
-
-  return event;
-
+  return order.trackingEvents.map((e) => ({ ...e, label: TRACKING_LABELS[e.status] }));
 }

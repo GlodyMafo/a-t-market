@@ -1,9 +1,16 @@
 import { Request, Response } from "express";
 
-import { addTrackingToOrder, getOrderDetails, getAllOrders, getAdminStats, getAllProductsAdmin, toggleProductStatus, updateProduct,  getInventory,
-  updateInventory,  restockInventory } from "../services/admin.service";
+import {
+  getOrderDetails, getAllOrders, getAdminStats, getAllProductsAdmin, toggleProductStatus,
+  updateProduct, getInventory, updateInventory, restockInventory,
+  deleteProduct, getAdminDashboard, getInternationalOrdersToPurchase,
+} from "../services/admin.service";
 
-  import { getSettings, updateSettings} from "../services/settings.service";
+import { postTrackingEvent } from "../services/orderTracking.service";
+import { sendError } from "../utils/appError";
+import { AuthRequest } from "../middlewares/auth.middleware";
+
+import { getSettings, updateSettings} from "../services/settings.service";
 
 import { createProduct } from "../services/product.service";
 
@@ -41,83 +48,31 @@ export async function getAllOrdersController(
 }
 
 
-export async function getOrderDetailsController(
-    req: Request,
-    res: Response
-) {
-
-    try {
-
-        const { id } =
-            req.params as Record<string, string>;
-
-        const order =
-            await getOrderDetails(id);
-
-        return res.json({
-
-            success: true,
-
-            data: order
-
-        });
-
-    } catch (error: any) {
-
-        return res.status(404).json({
-
-            success: false,
-
-            message: error.message
-
-        });
-
-    }
-
+export async function getOrderDetailsController(req: Request, res: Response) {
+  try {
+    const { id } = req.params as Record<string, string>;
+    return res.json({ success: true, data: await getOrderDetails(id) });
+  } catch (error) {
+    return sendError(res, error);
+  }
 }
 
-export async function addTrackingEventController(
-    req: Request,
-    res: Response
-) {
+export async function addTrackingEventController(req: AuthRequest, res: Response) {
+  try {
+    const { orderId } = req.params as Record<string, string>;
+    const { status, message } = req.body;
 
-    try {
+    const event = await postTrackingEvent({
+      orderId,
+      status,
+      message,
+      actorId: req.user!.userId,
+    });
 
-        const { orderId } =
-            req.params as Record<string, string>;
-
-        const {
-            status,
-            message
-        } = req.body;
-
-        const event =
-            await addTrackingToOrder(
-                orderId,
-                status,
-                message
-            );
-
-        return res.status(201).json({
-
-            success: true,
-
-            data: event
-
-        });
-
-    } catch (error: any) {
-
-        return res.status(400).json({
-
-            success: false,
-
-            message: error.message
-
-        });
-
-    }
-
+    return res.status(201).json({ success: true, data: event });
+  } catch (error) {
+    return sendError(res, error);
+  }
 }
 
 export async function getAdminStatsController(
@@ -480,4 +435,30 @@ export async function updateSettingsController(
 
   }
 
+}
+
+
+export async function deleteProductController(req: Request, res: Response) {
+  try {
+    const { id } = req.params as Record<string, string>;
+    return res.json({ success: true, data: await deleteProduct(id) });
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
+export async function getAdminDashboardController(req: Request, res: Response) {
+  try {
+    return res.json({ success: true, data: await getAdminDashboard() });
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
+export async function getToPurchaseController(req: Request, res: Response) {
+  try {
+    return res.json({ success: true, data: await getInternationalOrdersToPurchase() });
+  } catch (error) {
+    return sendError(res, error);
+  }
 }
