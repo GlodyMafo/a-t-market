@@ -4,6 +4,8 @@ import
   getProductsController ,
   getProductByIdController} 
   from "../controllers/product.controller";
+import { idParams } from "../validators/common.validator";
+import { validate } from "../middlewares/validate";
  
 
 const router = Router();
@@ -16,7 +18,9 @@ router.get(
 
 router.get(
  "/:id",
- getProductByIdController
+ validate({ params: idParams }),
+ getProductByIdController,
+ 
 );
 
 

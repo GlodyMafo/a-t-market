@@ -1,9 +1,12 @@
 import { prisma } from "../lib/prisma";
 import { randomUUID } from "crypto";
-import { createDeposit } from "./pawapay.service";
+import { createDeposit, PaymentUserError } from "./pawapay.service";
 import { PAYMENT_CURRENCY } from "./payment.settlement.service";
 
+
 type PaymentType = "PRODUCT" | "SHIPPING" | "FULL";
+
+const PAIEMENT_REFUSE = "Paiement refusé par PawaPay";
 
 // Une commande n'accepte un paiement que dans ces statuts.
 const PAYABLE_ORDER_STATUSES = ["PENDING_PAYMENT", "PARTIALLY_PAID"];
@@ -104,7 +107,7 @@ export async function createPayment(
 
     // PawaPay peut répondre HTTP 200 avec un statut REJECTED : le dépôt n'existe pas.
     if (pawapayResponse.status === "REJECTED") {
-      throw new Error("Paiement refusé par PawaPay");
+      throw new PaymentUserError(PAIEMENT_REFUSE);
     }
   } catch (error: any) {
     await prisma.payment.updateMany({
@@ -112,7 +115,10 @@ export async function createPayment(
       data: { status: "FAILED" },
     });
 
-    throw new Error(error.message || "Paiement PawaPay échoué");
+    // Le détail technique (réponse brute de PawaPay, réseau…) reste dans les journaux serveur :
+    // le client ne reçoit qu'un message sûr.
+    if (error instanceof PaymentUserError) throw error;
+    throw new Error("Le paiement n'a pas pu être initié. Réessayez dans quelques instants.");
   }
 
   return payment;

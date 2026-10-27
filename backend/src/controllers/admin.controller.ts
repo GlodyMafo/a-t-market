@@ -3,48 +3,29 @@ import { Request, Response } from "express";
 import {
   getOrderDetails, getAllOrders, getAdminStats, getAllProductsAdmin, toggleProductStatus,
   updateProduct, getInventory, updateInventory, restockInventory,
-  deleteProduct, getAdminDashboard, getInternationalOrdersToPurchase,
+  deleteProduct, getAdminDashboard, getInternationalOrdersToPurchase, countAllOrders, 
+  countProductsAdmin, countInventory
 } from "../services/admin.service";
 
 import { postTrackingEvent } from "../services/orderTracking.service";
-import { sendError } from "../utils/appError";
+import { sendError, safeMessage } from "../utils/appError";
 import { AuthRequest } from "../middlewares/auth.middleware";
 
 import { getSettings, updateSettings} from "../services/settings.service";
 
 import { createProduct } from "../services/product.service";
 
+import { parsePagination, pageMeta } from "../utils/pagination";
 
-export async function getAllOrdersController(
-    req: Request,
-    res: Response
-) {
 
-    try {
-
-        const orders =
-            await getAllOrders();
-
-        return res.json({
-
-            success: true,
-
-            data: orders
-
-        });
-
-    } catch (error: any) {
-
-        return res.status(500).json({
-
-            success: false,
-
-            message: error.message
-
-        });
-
-    }
-
+export async function getAllOrdersController(req: Request, res: Response) {
+  try {
+    const { page, limit, paging } = parsePagination(req.query);
+    const [data, total] = await Promise.all([getAllOrders(paging), countAllOrders()]);
+    return res.json({ success: true, data, meta: pageMeta(total, page, limit) });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: safeMessage(error) });
+  }
 }
 
 
@@ -99,7 +80,7 @@ export async function getAdminStatsController(
 
             success: false,
 
-            message: error.message
+            message: safeMessage(error)
 
         });
 
@@ -107,37 +88,16 @@ export async function getAdminStatsController(
 
 }
 
-export async function getAllProductsAdminController(
-    req: Request,
-    res: Response
-) {
-
-    try {
-
-        const products =
-            await getAllProductsAdmin();
-
-        return res.json({
-
-            success: true,
-
-            data: products
-
-        });
-
-    } catch (error: any) {
-
-        return res.status(500).json({
-
-            success: false,
-
-            message: error.message
-
-        });
-
-    }
-
+export async function getAllProductsAdminController(req: Request, res: Response) {
+  try {
+    const { page, limit, paging } = parsePagination(req.query);
+    const [data, total] = await Promise.all([getAllProductsAdmin(paging), countProductsAdmin()]);
+    return res.json({ success: true, data, meta: pageMeta(total, page, limit) });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: safeMessage(error) });
+  }
 }
+
 
 export async function toggleProductStatusController(
     req: Request,
@@ -166,7 +126,7 @@ export async function toggleProductStatusController(
 
             success: false,
 
-            message: error.message
+            message: safeMessage(error)
 
         });
 
@@ -204,7 +164,7 @@ export async function updateProductController(
 
       success: false,
 
-      message: error.message
+      message: safeMessage(error)
 
     });
 
@@ -240,7 +200,7 @@ export async function createProductAdminController(
 
       success: false,
 
-      message: error.message
+      message: safeMessage(error)
 
     });
 
@@ -249,37 +209,14 @@ export async function createProductAdminController(
 }
 
 
-
-export async function getInventoryController(
-  req: Request,
-  res: Response
-) {
-
+export async function getInventoryController(req: Request, res: Response) {
   try {
-
-    const inventory =
-      await getInventory();
-
-    return res.json({
-
-      success: true,
-
-      data: inventory
-
-    });
-
+    const { page, limit, paging } = parsePagination(req.query);
+    const [data, total] = await Promise.all([getInventory(paging), countInventory()]);
+    return res.json({ success: true, data, meta: pageMeta(total, page, limit) });
   } catch (error: any) {
-
-    return res.status(400).json({
-
-      success: false,
-
-      message: error.message
-
-    });
-
+    return res.status(400).json({ success: false, message: safeMessage(error) });
   }
-
 }
 
 
@@ -316,7 +253,7 @@ export async function updateInventoryController(
 
       success: false,
 
-      message: error.message
+      message: safeMessage(error)
 
     });
 
@@ -361,7 +298,7 @@ export async function restockInventoryController(
 
       success: false,
 
-      message: error.message
+      message: safeMessage(error)
 
     });
 
@@ -394,7 +331,7 @@ export async function getSettingsController(
 
       success: false,
 
-      message: error.message
+      message: safeMessage(error)
 
     });
 
@@ -429,7 +366,7 @@ export async function updateSettingsController(
 
       success: false,
 
-      message: error.message
+      message: safeMessage(error)
 
     });
 

@@ -60,3 +60,33 @@ export const previewRateLimiter = rateLimit({
     message: "Trop d'aperçus demandés. Réessayez dans quelques minutes."
   }
 });
+
+const borne = (valeur: string | undefined, defaut: number) =>
+  Math.min(Math.max(Number(valeur) || defaut, 1), 100000);
+
+/** Connexion : seules les tentatives ÉCHOUÉES comptent (un client légitime n'est jamais bloqué). */
+export const loginRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: borne(process.env.AUTH_LOGIN_LIMIT, 10),
+  skipSuccessfulRequests: true,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => ipKeyGenerator(req.ip ?? ""),
+  message: {
+    success: false,
+    message: "Trop de tentatives de connexion. Réessayez dans quelques minutes."
+  }
+});
+
+/** Inscription : limitée par adresse IP et par heure. */
+export const registerRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: borne(process.env.AUTH_REGISTER_LIMIT, 5),
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => ipKeyGenerator(req.ip ?? ""),
+  message: {
+    success: false,
+    message: "Trop d'inscriptions depuis cette adresse. Réessayez plus tard."
+  }
+});

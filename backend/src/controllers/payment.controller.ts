@@ -1,3 +1,4 @@
+import { safeMessage } from "../utils/appError";
 import { Response } from "express";
 
 import { createPayment } from "../services/payment.service";
@@ -43,7 +44,7 @@ export async function createPaymentController(
 
     return res.status(400).json({
       success: false,
-      message: error.message
+      message: safeMessage(error)
     });
 
   }

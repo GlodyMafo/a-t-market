@@ -1,3 +1,4 @@
+import { safeMessage } from "../utils/appError";
 import { Request, Response } from "express";
 
 import {
@@ -42,7 +43,7 @@ export async function createSubCategoryController(
 
       success:false,
 
-      message:error.message
+      message: safeMessage(error)
 
     });
 
@@ -94,7 +95,7 @@ export async function getSubCategoryByIdController(
 
       success:false,
 
-      message:error.message
+      message: safeMessage(error)
 
     });
 

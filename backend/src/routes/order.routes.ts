@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { createOrderController,  getOrdersByUserController, getOrderByIdController } from "../controllers/order.controller";
 import { authMiddleware } from "../middlewares/auth.middleware";
+import { validate } from "../middlewares/validate";
+import { idParams } from "../validators/common.validator";
 
 const router = Router();
 
@@ -19,7 +21,9 @@ router.get(
 router.get(
  "/:id",
  authMiddleware,
- getOrderByIdController
+  validate({ params: idParams }),
+ getOrderByIdController,
+
 );
 
 export default router;

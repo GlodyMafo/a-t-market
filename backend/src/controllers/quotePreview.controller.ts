@@ -1,3 +1,4 @@
+import { safeMessage } from "../utils/appError";
 import { Request, Response } from "express";
 
 import {
@@ -18,11 +19,11 @@ export async function previewInternationalQuoteController(
     });
   } catch (error: any) {
     if (error instanceof PreviewInputError) {
-      return res.status(400).json({ success: false, message: error.message });
+      return res.status(400).json({ success: false, message: safeMessage(error) });
     }
 
     if (error?.name === "ExtractionBudgetExceededError") {
-      return res.status(503).json({ success: false, message: error.message });
+      return res.status(503).json({ success: false, message: safeMessage(error) });
     }
 
     // Route publique : on ne renvoie jamais un message interne.

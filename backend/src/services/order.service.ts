@@ -3,6 +3,7 @@ import { prisma } from "../lib/prisma";
 import { reserveStockForOrder } from "./inventory.service";
 import { activeOrderQuoteIds, quoteIssue, quoteIssueMessage } from "./quoteEligibility";
 import { quoteSnapshot } from "./quoteSnapshot";
+import type { Paging } from "../utils/pagination"
 
 const Decimal = Prisma.Decimal;
 
@@ -152,53 +153,19 @@ export async function createOrderFromCart(userId: string) {
 
 // Get all orders by user
 
-export async function getOrdersByUser(
-  userId: string
-) {
+export async function countOrdersByUser(userId: string) {
+  return prisma.order.count({ where: { userId } });
+}
 
-
-  const orders =
-    await prisma.order.findMany({
-
-      where: {
-        userId
-      },
-
-
-      include: {
-
-        items: {
-
-          include: {
-
-            product: {
-
-              include: {
-
-                images: true
-
-              }
-
-            }
-
-          }
-
-        }
-
-      },
-
-
-      orderBy: {
-
-        createdAt: "desc"
-
-      }
-
-    });
-
-
-  return orders;
-
+export async function getOrdersByUser(userId: string, paging?: Paging) {
+  return prisma.order.findMany({
+    ...paging,
+    where: { userId },
+    include: {
+      items: { include: { product: { include: { images: true } } } },
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+  });
 }
 
 export async function getOrderById(

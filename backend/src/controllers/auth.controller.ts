@@ -1,3 +1,4 @@
+import { safeMessage } from "../utils/appError";
 import { Request, Response } from "express";
 
 import {
@@ -51,8 +52,7 @@ export async function registerController(
 
       success: false,
 
-      message:
-        error.message
+      message: safeMessage(error)
 
     });
 
@@ -96,8 +96,7 @@ export async function loginController(
 
       success: false,
 
-      message:
-        error.message
+      message: safeMessage(error)
 
     });
 
@@ -135,7 +134,7 @@ export async function meController(
 
       success: false,
 
-      message: error.message
+      message: safeMessage(error)
 
     });
 

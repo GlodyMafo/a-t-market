@@ -14,7 +14,7 @@ export function generateToken(
     payload,
     env.JWT_SECRET,
     {
-       expiresIn: env.JWT_EXPIRES_IN as jwt.SignOptions["expiresIn"]
+      expiresIn: env.JWT_EXPIRES_IN as jwt.SignOptions["expiresIn"]
     }
   );
 
@@ -26,7 +26,8 @@ export function verifyToken(
 
   return jwt.verify(
     token,
-    env.JWT_SECRET
+    env.JWT_SECRET,
+    { algorithms: ["HS256"] }
   ) as JwtPayload;
 
 }

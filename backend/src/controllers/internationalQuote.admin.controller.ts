@@ -1,3 +1,4 @@
+import { safeMessage } from "../utils/appError";
 import { Request, Response } from "express";
 import { z } from "zod";
 
@@ -37,10 +38,10 @@ function adminIdOf(req: Request): string {
 
 function fail(res: Response, error: unknown) {
   if (error instanceof QuoteNotFoundError) {
-    return res.status(404).json({ success: false, message: error.message });
+    return res.status(404).json({ success: false, message: safeMessage(error) });
   }
 
-  const message = error instanceof Error ? error.message : "Erreur inattendue";
+  const message = safeMessage(error, "Erreur inattendue");
   return res.status(400).json({ success: false, message });
 }
 

@@ -2,6 +2,7 @@ import { prisma } from "../lib/prisma";
 import { Prisma } from "../../generated/prisma/client";
 import { allowedNextStatuses, getOrderKind } from "./orderFlow";
 import { ConflictError, NotFoundError } from "../utils/appError";
+import type { Paging } from "../utils/pagination"
 
 interface UpdateProductData {
   name?: string;
@@ -10,56 +11,23 @@ interface UpdateProductData {
   margin?: number;
 }
 
-export async function getAllOrders() {
+export const countAllOrders = () => prisma.order.count();
+export const countProductsAdmin = () => prisma.product.count();
+export const countInventory = () => prisma.inventory.count();
 
-  const orders =
-    await prisma.order.findMany({
-
-      include: {
-
-        user: {
-
-          select: {
-            id: true,
-            email: true,
-            phone: true
-          }
-
-        },
-
-        items: {
-
-          include: {
-
-            product: {
-
-              include: {
-                images: true
-              }
-
-            }
-
-          }
-
-        },
-
-        payments: true,
-
-        trackingEvents: true
-
-      },
-
-      orderBy: {
-
-        createdAt: "desc"
-
-      }
-
-    });
-
-  return orders;
-
+export async function getAllOrders(paging?: Paging) {
+  return prisma.order.findMany({
+    ...paging,
+    include: {
+      user: { select: { id: true, email: true, phone: true } },
+      items: { include: { product: { include: { images: true } } } },
+      payments: true,
+      trackingEvents: true,
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+  });
 }
+
 
 export async function getOrderDetails(orderId: string) {
   const order = await prisma.order.findUnique({
@@ -132,29 +100,12 @@ export async function getAdminStats() {
 
 }
 
-export async function getAllProductsAdmin() {
-
-  const products =
-    await prisma.product.findMany({
-
-      include: {
-
-        images: true,
-
-        inventory: true
-
-      },
-
-      orderBy: {
-
-        createdAt: "desc"
-
-      }
-
-    });
-
-  return products;
-
+export async function getAllProductsAdmin(paging?: Paging) {
+  return prisma.product.findMany({
+    ...paging,
+    include: { images: true, inventory: true },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+  });
 }
 
 export async function toggleProductStatus(
@@ -253,32 +204,12 @@ export async function updateProduct(
 }
 
 
-export async function getInventory() {
-
+export async function getInventory(paging?: Paging) {
   return prisma.inventory.findMany({
-
-    include: {
-
-      product: {
-
-        include: {
-
-          images: true
-
-        }
-
-      }
-
-    },
-
-    orderBy: {
-
-      updatedAt: "desc"
-
-    }
-
+    ...paging,
+    include: { product: { include: { images: true } } },
+    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
   });
-
 }
 
 export async function updateInventory(

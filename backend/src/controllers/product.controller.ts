@@ -1,3 +1,4 @@
+import { safeMessage } from "../utils/appError";
 import { Request, Response } from "express";
 import {
   createProduct,
@@ -29,7 +30,7 @@ import {
 
 //     return res.status(400).json({
 //       success: false,
-//       message: error.message
+//       message: safeMessage(error)
 //     });
 
 //   }
@@ -92,7 +93,7 @@ export async function getProductByIdController(
 
     return res.status(404).json({
       success: false,
-      message: error.message
+      message: safeMessage(error)
     });
 
   }

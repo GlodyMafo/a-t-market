@@ -1,12 +1,10 @@
 import { z } from "zod";
 import { TRACKING_STATUSES } from "../services/orderFlow";
+import { id } from "./common.validator";
 
 const deuxDecimales = (v: number) => Math.round(v * 100) / 100 === v;
 
-const id = z
-  .string({ error: "Identifiant invalide" })
-  .min(1, "Identifiant invalide")
-  .max(64, "Identifiant invalide");
+
 
 export const idParams = z.object({ id }).strict();
 export const orderIdParams = z.object({ orderId: id }).strict();

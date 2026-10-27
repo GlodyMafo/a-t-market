@@ -1,3 +1,4 @@
+import { safeMessage } from "../utils/appError";
 import { Request, Response } from "express";
 
 import {
@@ -44,7 +45,7 @@ export async function createOrUpdateWeightCatalogController(
 
       success: false,
 
-      message: error.message
+      message: safeMessage(error)
 
     });
 
@@ -96,7 +97,7 @@ export async function getWeightBySubCategoryController(
 
       success: false,
 
-      message: error.message
+      message: safeMessage(error)
 
     });
 

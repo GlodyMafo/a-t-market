@@ -1,3 +1,4 @@
+import { safeMessage } from "../utils/appError";
 import { Request, Response } from "express";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import {
@@ -49,7 +50,7 @@ export async function addToCartController(
 
       success: false,
 
-      message: error.message
+      message: safeMessage(error)
 
     });
 
@@ -90,7 +91,7 @@ export async function getCartController(
 
       success: false,
 
-      message: error.message
+      message: safeMessage(error)
 
     });
 
@@ -139,7 +140,7 @@ export async function updateCartItemController(
 
       success: false,
 
-      message: error.message
+      message: safeMessage(error)
 
     });
 
@@ -185,7 +186,7 @@ export async function removeCartItemController(
 
       success: false,
 
-      message: error.message
+      message: safeMessage(error)
 
     });
 
@@ -212,7 +213,7 @@ export async function addQuoteToCartController(
   } catch (error: any) {
     return res.status(400).json({
       success: false,
-      message: error.message,
+      message: safeMessage(error),
     });
   }
 }
@@ -231,7 +232,7 @@ export async function mergeCartController(
     });
   } catch (error: any) {
     if (error instanceof MergeInputError) {
-      return res.status(400).json({ success: false, message: error.message });
+      return res.status(400).json({ success: false, message: safeMessage(error) });
     }
 
     // Deux fusions simultanées avec le même ticket : la seconde échoue sur l'unicité.

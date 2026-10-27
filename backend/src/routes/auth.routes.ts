@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { loginRateLimiter, registerRateLimiter } from "../middlewares/rateLimiter";
 
 import {
   registerController,
@@ -14,15 +15,8 @@ from "../middlewares/auth.middleware";
 
 const router = Router();
 
-router.post(
-  "/register",
-  registerController
-);
-
-router.post(
-  "/login",
-  loginController
-);
+router.post("/register", registerRateLimiter, registerController);
+router.post("/login", loginRateLimiter, loginController);
 
 router.get(
   "/me",

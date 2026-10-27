@@ -11,6 +11,9 @@ import {
 import { authMiddleware } from "../middlewares/auth.middleware";
 import { adminMiddleware } from "../middlewares/admin.middleware";
 
+import { validate } from "../middlewares/validate";
+import{subCategoryIdParams} from "../validators/common.validator";
+
 const router = Router();
 
 router.use(authMiddleware);
@@ -28,7 +31,8 @@ router.get(
 
 router.get(
   "/subcategory/:subCategoryId",
-  getWeightBySubCategoryController
+  getWeightBySubCategoryController,
+  validate({ params: subCategoryIdParams })
 );
 
 export default router;

@@ -32,6 +32,9 @@ const envSchema = z.object({
   APIFY_API_TOKEN: requis("APIFY_API_TOKEN"),
   // Nombre de proxys devant le serveur (1 sur Render) : nécessaire pour lire la vraie IP des visiteurs.
   TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
+    // Domaines du frontend autorisés à appeler l'API, séparés par des virgules.
+  // Exemple : https://at-market.vercel.app,https://www.atmarket.cd
+  CORS_ORIGINS: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -44,4 +47,28 @@ if (!parsed.success) {
   process.exit(1);
 }
 
-export const env = parsed.data;
+const origines = (parsed.data.CORS_ORIGINS ?? "")
+  .split(",")
+  .map((o) => o.trim().replace(/\/+$/, ""))
+  .filter(Boolean);
+
+for (const origine of origines) {
+  try {
+    if (new URL(origine).origin !== origine) throw new Error();
+  } catch {
+    console.error(`Configuration invalide : CORS_ORIGINS contient « ${origine} » (attendu : https://domaine.tld, sans chemin).`);
+    process.exit(1);
+  }
+}
+
+if (parsed.data.NODE_ENV === "production" && origines.length === 0) {
+  console.error("Configuration invalide : CORS_ORIGINS est obligatoire en production.");
+  process.exit(1);
+}
+
+export const env = {
+  ...parsed.data,
+  // Hors production, le frontend Next.js local est autorisé par défaut.
+  CORS_ALLOWED_ORIGINS:
+    origines.length > 0 ? origines : ["http://localhost:3000", "http://127.0.0.1:3000"],
+};

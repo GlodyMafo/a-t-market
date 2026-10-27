@@ -1,13 +1,17 @@
+import { safeMessage } from "../utils/appError";
 import { Request, Response } from "express";
 
 import {
   createOrderFromCart,
   getOrdersByUser,
-  getOrderById
+  getOrderById,
+  countOrdersByUser
 } from "../services/order.service";
 
 import { AuthRequest }
   from "../middlewares/auth.middleware";
+
+import { parsePagination, pageMeta } from "../utils/pagination"
 
 // Create order
 
@@ -39,7 +43,7 @@ export async function createOrderController(
 
       success:false,
 
-      message:error.message
+      message: safeMessage(error)
 
     });
 
@@ -50,41 +54,18 @@ export async function createOrderController(
 
 
 // Get user orders
-
-export async function getOrdersByUserController(
-  req: AuthRequest,
-  res: Response
-) {
-
+export async function getOrdersByUserController(req: AuthRequest, res: Response) {
   try {
-
-    const orders =
-      await getOrdersByUser(
-
-        req.user!.userId
-
-      );
-
-    return res.json({
-
-      success:true,
-
-      data:orders
-
-    });
-
-  } catch(error:any){
-
-    return res.status(400).json({
-
-      success:false,
-
-      message:error.message
-
-    });
-
+    const userId = req.user!.userId;
+    const { page, limit, paging } = parsePagination(req.query);
+    const [data, total] = await Promise.all([
+      getOrdersByUser(userId, paging),
+      countOrdersByUser(userId),
+    ]);
+    return res.json({ success: true, data, meta: pageMeta(total, page, limit) });
+  } catch (error: any) {
+    return res.status(400).json({ success: false, message: safeMessage(error) });
   }
-
 }
 
 export async function getOrderByIdController(
@@ -117,7 +98,7 @@ export async function getOrderByIdController(
 
       success:false,
 
-      message:error.message
+      message: safeMessage(error)
 
     });
 

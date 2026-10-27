@@ -4,6 +4,10 @@ import { prisma } from "../lib/prisma";
 
 import { generateToken } from "../utils/jwt";
 
+// Hash factice : on compare toujours un mot de passe, même si l'email est inconnu,
+// pour que la durée de réponse ne révèle pas quels emails ont un compte.
+const HASH_FACTICE = "$2b$10$oJgQV632JIPIw4XHYA3HguTF8nBN1Pdomiu8hqlLmpyMeyzil3ywe";
+
 interface RegisterData {
 
   email: string;
@@ -84,20 +88,19 @@ export async function register(
 
   const user =
     await prisma.user.create({
-
       data: {
-
         email,
-
-        password:
-          hashedPassword,
-
+        password: hashedPassword,
         phone
-
       }
-
-    });
-
+    })
+      .catch((error: any) => {
+        // Deux inscriptions simultanées avec le même email ou numéro.
+        if (error?.code === "P2002") {
+          throw new Error("Cet email ou ce numéro est déjà utilisé");
+        }
+        throw error;
+      });
 
   const token =
     generateToken({
@@ -153,11 +156,8 @@ export async function login(
 
 
   if (!user) {
-
-    throw new Error(
-      "Identifiants invalides"
-    );
-
+    await bcrypt.compare(password, HASH_FACTICE);
+    throw new Error("Identifiants invalides");
   }
 
 

@@ -7,7 +7,7 @@
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
     "start": "node dist/src/server.js",
-    "test": "tsx --test --test-concurrency=1 src/tests/smoke.test.ts src/tests/payment.settlement.test.ts src/tests/pawapay.callback.test.ts src/tests/payment.create.test.ts src/tests/inventory.test.ts src/tests/pricing.test.ts src/tests/productUrl.test.ts src/tests/quote.test.ts src/tests/extraction.http.test.ts src/tests/quote.admin.test.ts src/tests/quote.admin.http.test.ts src/tests/quote.ticket.test.ts src/tests/quote.preview.test.ts src/tests/quote.preview.http.test.ts src/tests/quote.preview.ratelimit.test.ts src/tests/hybrid.schema.test.ts src/tests/quote.validity.test.ts src/tests/quote.create.http.test.ts src/tests/cart.quote.test.ts src/tests/cart.merge.test.ts src/tests/order.hybrid.test.ts src/tests/guest.flow.http.test.ts src/tests/orderFlow.test.ts src/tests/order.lifecycle.test.ts src/tests/admin.lifecycle.http.test.ts" ,
+    "test": "tsx --test --test-concurrency=1 src/tests/smoke.test.ts src/tests/payment.settlement.test.ts src/tests/pawapay.callback.test.ts src/tests/payment.create.test.ts src/tests/inventory.test.ts src/tests/pricing.test.ts src/tests/productUrl.test.ts src/tests/quote.test.ts src/tests/extraction.http.test.ts src/tests/quote.admin.test.ts src/tests/quote.admin.http.test.ts src/tests/quote.ticket.test.ts src/tests/quote.preview.test.ts src/tests/quote.preview.http.test.ts src/tests/quote.preview.ratelimit.test.ts src/tests/hybrid.schema.test.ts src/tests/quote.validity.test.ts src/tests/quote.create.http.test.ts src/tests/cart.quote.test.ts src/tests/cart.merge.test.ts src/tests/order.hybrid.test.ts src/tests/guest.flow.http.test.ts src/tests/orderFlow.test.ts src/tests/order.lifecycle.test.ts src/tests/admin.lifecycle.http.test.ts  src/tests/appError.test.ts src/tests/hardening.http.test.ts src/tests/auth.ratelimit.http.test.ts",
     "seed": "tsx prisma/seed.ts"
   },
   "keywords": [],
@@ -38,6 +38,7 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "express-rate-limit": "^8.5.2",
+    "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
     "node-cron": "^4.5.0",
     "pg": "^8.22.0",

@@ -13,10 +13,12 @@ import { authMiddleware } from "../middlewares/auth.middleware";
 import { adminMiddleware } from "../middlewares/admin.middleware";
 import { validate } from "../middlewares/validate";
 import {
-  idParams, orderIdParams, productIdParams,
+ productIdParams,
   createProductSchema, updateProductSchema, trackingBodySchema,
   updateInventorySchema, restockInventorySchema,
 } from "../validators/admin.validator";
+
+import { idParams, orderIdParams } from "../validators/common.validator";
 
 const router = Router();
 

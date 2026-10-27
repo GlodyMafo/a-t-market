@@ -38,11 +38,14 @@ export async function authMiddleware(
 
     }
 
-    const token =
-      authHeader.replace(
-        "Bearer ",
-        ""
-      );
+    const [scheme, token] = authHeader.split(" ");
+
+    if (scheme !== "Bearer" || !token) {
+      return res.status(401).json({
+        success: false,
+        message: "Token manquant"
+      });
+    }
 
     const decoded =
       verifyToken(token);

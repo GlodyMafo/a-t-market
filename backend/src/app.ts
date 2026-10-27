@@ -16,6 +16,8 @@ import weightCatalogRoutes from "./routes/weightCatalog.routes";
 import internationalQuoteRoutes from "./routes/internationalQuote.routes";
 import internationalQuoteAdminRoutes from "./routes/internationalQuote.admin.routes";
 import externalProductRoutes from "./routes/externalProduct.routes";
+import helmet from "helmet";
+import { errorHandler, notFoundHandler } from "./middlewares/errorHandler";
 
 
 
@@ -27,9 +29,19 @@ if (env.TRUST_PROXY_HOPS > 0) {
   app.set("trust proxy", env.TRUST_PROXY_HOPS);
 }
 
-app.use(cors());
 
-app.use(express.json());
+app.use(helmet());
+
+// Seuls les domaines du frontend peuvent appeler l'API depuis un navigateur.
+// Les appels sans en-tête Origin (PawaPay, curl, tests) ne sont pas concernés par CORS.
+app.use(
+  cors({
+    origin: (origin, callback) =>
+      callback(null, !origin || env.CORS_ALLOWED_ORIGINS.includes(origin)),
+  })
+);
+
+app.use(express.json({ limit: "100kb" }));
 
 app.use("/health", healthRoutes);
 
@@ -101,5 +113,8 @@ app.use(
   externalProductRoutes
 );
 
+
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 export default app;

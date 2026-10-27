@@ -10,6 +10,8 @@ import {
 
 import { authMiddleware } from "../middlewares/auth.middleware";
 import { adminMiddleware } from "../middlewares/admin.middleware";
+import { idParams } from "../validators/common.validator";
+import { validate } from "../middlewares/validate";
 
 const router = Router();
 
@@ -27,7 +29,7 @@ router.get(
 
 router.get(
   "/:id",
-  getCategoryByIdController
+  getCategoryByIdController,	validate({ params: idParams })
 );
 
 export default router;

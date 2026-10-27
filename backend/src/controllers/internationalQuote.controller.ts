@@ -1,3 +1,4 @@
+import { safeMessage } from "../utils/appError";
 import { Request, Response } from "express";
 import {
   createInternationalQuote,
@@ -62,9 +63,7 @@ export async function createInternationalQuoteController(
     });
   } catch (error: unknown) {
     const message =
-      error instanceof Error
-        ? error.message
-        : "Impossible de créer le devis.";
+      safeMessage(error, "Impossible de créer le devis.");
 
     return res.status(400).json({
       success: false,

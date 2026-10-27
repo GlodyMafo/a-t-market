@@ -5,6 +5,9 @@ import {
     CreateDepositResponse
 } from "../types/pawapay";
 
+/** Erreur dont le message peut être montré tel quel au client (saisie invalide, paiement refusé). */
+export class PaymentUserError extends Error {}
+
 
 function normalizePhone(phone: string) {
 
@@ -37,9 +40,7 @@ function normalizeProvider(provider: string) {
 
     if (!normalized) {
 
-        throw new Error(
-            "Provider Mobile Money non supporté"
-        );
+        throw new PaymentUserError("Provider Mobile Money non supporté");
 
     }
 
@@ -113,10 +114,6 @@ export async function createDeposit(
     try {
 
 
-        console.log(
-            "PAWAPAY URL:",
-            env.PAWAPAY_BASE_URL
-        );
 
         const response = await fetch(
 
@@ -153,11 +150,7 @@ export async function createDeposit(
         if (!response.ok) {
 
 
-            throw new Error(
-
-                `PawaPay error: ${responseText}`
-
-            );
+            throw new Error(`PawaPay HTTP ${response.status}`);
 
         }
 
@@ -170,10 +163,7 @@ export async function createDeposit(
     } catch (error: any) {
 
 
-        console.error(
-            "PAWAPAY ERROR:",
-            error
-        );
+        console.error("PAWAPAY ERROR:", error?.message);
 
 
         throw new Error(
