@@ -20,6 +20,9 @@ import {
 
 import { idParams, orderIdParams } from "../validators/common.validator";
 
+import { getCategoriesAdminController } from "../controllers/category.controller";
+
+
 const router = Router();
 
 router.use(authMiddleware);
@@ -62,6 +65,9 @@ router.post(
   validate({ params: productIdParams, body: restockInventorySchema }),
   restockInventoryController
 );
+
+// --- Catégories (toutes, actives ou non) ---
+router.get("/categories", getCategoriesAdminController);
 
 // --- Réglages ---
 router.get("/settings", getSettingsController);

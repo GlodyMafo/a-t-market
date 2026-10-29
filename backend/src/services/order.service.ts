@@ -4,6 +4,7 @@ import { reserveStockForOrder } from "./inventory.service";
 import { activeOrderQuoteIds, quoteIssue, quoteIssueMessage } from "./quoteEligibility";
 import { quoteSnapshot } from "./quoteSnapshot";
 import type { Paging } from "../utils/pagination"
+import { categoryChainSelect, isCategoryActive } from "./productAvailability";
 
 const Decimal = Prisma.Decimal;
 
@@ -35,12 +36,15 @@ export async function createOrderFromCart(userId: string) {
 
     const cart = await tx.cart.findUniqueOrThrow({
       where: { id: cartRef.id },
-      include: { items: { include: { product: true } } },
+      include: {
+        items: { include: { product: { include: { subCategory: categoryChainSelect } } } },
+      },
     });
 
     if (cart.items.length === 0) {
       throw new Error("Le panier est vide");
     }
+
 
     // --- Devis : verrou, puis relecture à jour (un admin a pu changer le statut entre-temps) ---
     const quoteIds = cart.items
@@ -74,7 +78,11 @@ export async function createOrderFromCart(userId: string) {
         }
         const issue = quoteIssue(quote, ordered.has(quote.id));
         if (issue) problems.push(quoteIssueMessage(issue, quote.productName));
-      } else if (!item.product || !item.product.isActive) {
+      } else if (
+        !item.product ||
+        !item.product.isActive ||
+        !isCategoryActive(item.product.subCategory)
+      ) {
         problems.push(
           `Le produit « ${item.product?.name ?? "inconnu"} » n'est plus disponible`
         );

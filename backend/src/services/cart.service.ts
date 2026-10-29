@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma";
 import { activeOrderQuoteIds, quoteIssue, quoteIssueMessage } from "./quoteEligibility";
 import { createQuoteFromTicket, QuoteTicketError } from "./quoteFromTicket";
 import { verifyQuotePreviewTicket } from "./quotePreviewTicket";
+import { categoryChainSelect, isCategoryActive, type CategoryChain } from "./productAvailability";
 
 type Tx = Prisma.TransactionClient;
 
@@ -16,10 +17,10 @@ interface AddToCartData {
 // Vérifie qu'un produit est achetable et que la quantité totale demandée est en stock.
 // C'est un contrôle de confort : le contrôle définitif a lieu à la création de la commande.
 async function assertAvailable(
-  product: { id: string; name: string; isActive: boolean; type: string },
+  product: { id: string; name: string; isActive: boolean; type: string; subCategory?: CategoryChain },
   totalQuantity: number
 ) {
-  if (!product.isActive) {
+   if (!product.isActive || !isCategoryActive(product.subCategory)) {
     throw new Error(`Le produit « ${product.name} » n'est plus disponible`);
   }
 
@@ -47,8 +48,9 @@ export async function addToCart(data: AddToCartData) {
     throw new Error("La quantité doit être un entier supérieur à 0");
   }
 
-  const product = await prisma.product.findUnique({
+   const product = await prisma.product.findUnique({
     where: { id: productId },
+    include: { subCategory: categoryChainSelect },
   });
 
   if (!product) {
@@ -127,6 +129,7 @@ export async function getCartByUser(userId: string) {
             include: {
               images: true,
               inventory: { select: { quantity: true } },
+              subCategory: categoryChainSelect,
             },
           },
           quote: { select: quoteFields },
@@ -154,8 +157,8 @@ export async function getCartByUser(userId: string) {
 
     const product = item.product!;
     let issue: "UNAVAILABLE" | "OUT_OF_STOCK" | null = null;
-    if (!product.isActive) issue = "UNAVAILABLE";
-    else if (product.type === "LOCAL" && (product.inventory?.quantity ?? 0) < item.quantity) {
+    if (!product.isActive || !isCategoryActive(product.subCategory)) issue = "UNAVAILABLE";
+        else if (product.type === "LOCAL" && (product.inventory?.quantity ?? 0) < item.quantity) {
       issue = "OUT_OF_STOCK";
     }
 
@@ -192,7 +195,7 @@ export async function updateCartItemQuantity(
       id: itemId,
       cart: { userId },
     },
-    include: { product: true },
+    include: { product: { include: { subCategory: categoryChainSelect } } },  
   });
 
   if (!item) {
@@ -254,7 +257,7 @@ type AttachResult =
   | { status: "REJECTED"; reason: string };
 
 /**
- * Met un devis (appartenant au client) dans son panier.
+ * Met un devis (appartenant au client) dans son pa,ernier.
  * Refusé s'il est rejeté, périmé ou déjà commandé. Un devis EN ATTENTE est accepté dans le
  * panier (il sera marqué non payable) mais ne pourra pas être commandé tant qu'il n'est pas validé.
  */
@@ -411,12 +414,15 @@ async function mergeLocalItem(
 ): Promise<MergeItemResult> {
   const base = { index, type: "LOCAL" as const };
 
-  const product = await tx.product.findUnique({
+   const product = await tx.product.findUnique({
     where: { id: productId },
-    include: { inventory: { select: { quantity: true } } },
+    include: {
+      inventory: { select: { quantity: true } },
+      subCategory: categoryChainSelect,
+    },
   });
 
-  if (!product || !product.isActive) {
+  if (!product || !product.isActive || !isCategoryActive(product.subCategory)) {
     return { ...base, status: "REJECTED", reason: "Produit indisponible." };
   }
 

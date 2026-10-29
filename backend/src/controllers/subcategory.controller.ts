@@ -1,12 +1,13 @@
-import { safeMessage } from "../utils/appError";
 import { Request, Response } from "express";
 
-import {
+import { safeMessage, sendError } from "../utils/appError";
 
+import {
   createSubCategory,
   getSubCategories,
-  getSubCategoryById
-
+  getSubCategoryById,
+  updateSubCategory,
+  setSubCategoryActive
 } from "../services/subcategory.service";
 
 export async function createSubCategoryController(
@@ -101,4 +102,22 @@ export async function getSubCategoryByIdController(
 
   }
 
+}
+
+export async function updateSubCategoryController(req: Request, res: Response) {
+  try {
+    const { id } = req.params as Record<string, string>;
+    return res.json({ success: true, data: await updateSubCategory(id, req.body) });
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
+export async function setSubCategoryActiveController(req: Request, res: Response) {
+  try {
+    const { id } = req.params as Record<string, string>;
+    return res.json({ success: true, data: await setSubCategoryActive(id, req.body.isActive) });
+  } catch (error) {
+    return sendError(res, error);
+  }
 }

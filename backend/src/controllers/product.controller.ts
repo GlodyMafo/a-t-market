@@ -1,101 +1,48 @@
-import { safeMessage } from "../utils/appError";
 import { Request, Response } from "express";
+import { sendError } from "../utils/appError";
+import { parsePagination, pageMeta } from "../utils/pagination";
+import { catalogQuerySchema } from "../validators/catalog.validator";
 import {
-  createProduct,
-  getProducts,
+  searchProducts,
   getProductById
 } from "../services/product.service";
 
-
-
-// export async function createProductController(
-//   req: Request,
-//   res: Response
-// ) {
-
-//   try {
-
-//     const product =
-//       await createProduct(req.body);
-
-
-//     return res.status(201).json({
-//       success: true,
-//       data: product
-//     });
-
-
-//   } catch (error: any) {
-
-
-//     return res.status(400).json({
-//       success: false,
-//       message: safeMessage(error)
-//     });
-
-//   }
-
-// }
-
-// Get all active products
-
+// Catalogue public : recherche, filtres, tri, pagination
 export async function getProductsController(
   req: Request,
   res: Response
 ) {
-
   try {
+    const filters = catalogQuerySchema.parse(req.query);
+    const { page, limit, paging } = parsePagination(req.query);
 
-    const products = await getProducts();
+    const { items, total } = await searchProducts(filters, paging);
 
-
-    res.json({
+    return res.json({
       success: true,
-      data: products
+      data: items,
+      meta: pageMeta(total, page, limit)
     });
-
-
   } catch (error) {
-
-    res.status(500).json({
-      success:false,
-      message:"Failed to fetch products"
-    });
-
+    return sendError(res, error);
   }
-
 }
 
-
 // Get product details by ID
-
 export async function getProductByIdController(
   req: Request,
   res: Response
 ) {
-
   try {
-
     const { id } = req.params as Record<string, string>;
-
-
     const product =
       await getProductById(id);
-
 
     return res.json({
       success: true,
       data: product
     });
-
-
-  } catch (error: any) {
-
-    return res.status(404).json({
-      success: false,
-      message: safeMessage(error)
-    });
-
+  } catch (error) {
+    return sendError(res, error);
   }
-
 }

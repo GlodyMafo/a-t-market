@@ -1,12 +1,14 @@
-import { safeMessage } from "../utils/appError";
 import { Request, Response } from "express";
 
-import {
+import { safeMessage, sendError } from "../utils/appError";
 
+import {
   createCategory,
   getCategories,
-  getCategoryById
-
+  getCategoryById,
+  getCategoriesAdmin,
+  updateCategory,
+  setCategoryActive
 } from "../services/category.service";
 
 
@@ -102,4 +104,31 @@ export async function getCategoryByIdController(
 
   }
 
+}
+
+
+export async function getCategoriesAdminController(req: Request, res: Response) {
+  try {
+    return res.json({ success: true, data: await getCategoriesAdmin() });
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
+export async function updateCategoryController(req: Request, res: Response) {
+  try {
+    const { id } = req.params as Record<string, string>;
+    return res.json({ success: true, data: await updateCategory(id, req.body) });
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
+export async function setCategoryActiveController(req: Request, res: Response) {
+  try {
+    const { id } = req.params as Record<string, string>;
+    return res.json({ success: true, data: await setCategoryActive(id, req.body.isActive) });
+  } catch (error) {
+    return sendError(res, error);
+  }
 }
