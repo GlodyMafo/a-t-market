@@ -16,6 +16,7 @@ import weightCatalogRoutes from "./routes/weightCatalog.routes";
 import internationalQuoteRoutes from "./routes/internationalQuote.routes";
 import internationalQuoteAdminRoutes from "./routes/internationalQuote.admin.routes";
 import externalProductRoutes from "./routes/externalProduct.routes";
+import notificationRoutes from "./routes/notification.routes"
 import helmet from "helmet";
 import { errorHandler, notFoundHandler } from "./middlewares/errorHandler";
 
@@ -113,6 +114,10 @@ app.use(
   externalProductRoutes
 );
 
+app.use(
+  "/api/notifications",
+  notificationRoutes
+);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

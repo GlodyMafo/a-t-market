@@ -118,6 +118,8 @@ model User {
 
   trackingEventsPosted TrackingEvent[] @relation("TrackingEventActor")
 
+  notifications Notification[]
+
   createdAt DateTime @default(now())
 
   updatedAt DateTime @updatedAt
@@ -274,6 +276,8 @@ model Order {
   payments Payment[]
 
   trackingEvents TrackingEvent[]
+
+  notifications Notification[]
 
   createdAt DateTime @default(now())
 }
@@ -542,4 +546,40 @@ model QuoteRevision {
   createdAt DateTime @default(now())
 
   @@index([quoteId])
+}
+
+enum NotificationType {
+  PAYMENT_CONFIRMED
+  PAYMENT_FAILED
+  ORDER_STATUS_CHANGED
+}
+
+// Journal des notifications : une ligne par événement important pour le client.
+// Le temps réel (Socket.io) n'est qu'un moyen de livrer plus vite ce qui est déjà écrit ici.
+model Notification {
+  id String @id @default(cuid())
+
+  userId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type NotificationType
+
+  orderId String?
+
+  order Order? @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  title String
+
+  message String
+
+  data Json?
+
+  readAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+
+  @@index([userId, readAt])
 }

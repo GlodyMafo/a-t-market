@@ -1,7 +1,13 @@
 import type { OrderStatus, TrackingStatus } from "../../generated/prisma/client";
 import { prisma } from "../lib/prisma";
 import { ConflictError, NotFoundError } from "../utils/appError";
-import { assertTransition, getOrderKind, InvalidTransitionError } from "./orderFlow";
+import { orderRef, publishNotification, recordNotification } from "./notification.service";
+import {
+  assertTransition,
+  getOrderKind,
+  InvalidTransitionError,
+  TRACKING_LABELS,
+} from "./orderFlow";
 
 function refusCommande(status: OrderStatus) {
   if (status === "DELIVERED") {
@@ -22,10 +28,6 @@ function refusCommande(status: OrderStatus) {
   );
 }
 
-/**
- * Seul point d'entrée pour faire avancer une commande (livraison, achat, etc.).
- * Sous verrou de la commande : deux admins qui postent en même temps passent l'un après l'autre.
- */
 export async function postTrackingEvent(input: {
   orderId: string;
   status: TrackingStatus;
@@ -34,7 +36,7 @@ export async function postTrackingEvent(input: {
 }) {
   const { orderId, status, message, actorId } = input;
 
-  return prisma.$transaction(async (tx) => {
+  const { event, note } = await prisma.$transaction(async (tx) => {
     const locked = await tx.$queryRaw<{ id: string }[]>`
       SELECT id FROM "Order" WHERE id = ${orderId} FOR UPDATE
     `;
@@ -42,10 +44,9 @@ export async function postTrackingEvent(input: {
 
     const order = await tx.order.findUniqueOrThrow({
       where: { id: orderId },
-      select: { status: true, items: { select: { quoteId: true } } },
+      select: { status: true, userId: true, items: { select: { quoteId: true } } },
     });
 
-    // Règle : « livré » (et tout autre statut) est impossible sur une commande non payée.
     if (order.status !== "PAID") throw refusCommande(order.status);
 
     const last = await tx.trackingEvent.findFirst({
@@ -71,8 +72,6 @@ export async function postTrackingEvent(input: {
         fromStatus: from,
         actorId,
         message,
-        // Horloge prise APRÈS le verrou : l'ordre des événements reste fiable
-        // même si deux requêtes ont démarré en même temps.
         createdAt: new Date(),
       },
     });
@@ -81,6 +80,22 @@ export async function postTrackingEvent(input: {
       await tx.order.update({ where: { id: orderId }, data: { status: "DELIVERED" } });
     }
 
-    return event;
+    // Notification du client, dans la même transaction : pas de changement de statut sans trace.
+    const label = TRACKING_LABELS[status];
+    const note = await recordNotification(tx, {
+      userId: order.userId,
+      type: "ORDER_STATUS_CHANGED",
+      orderId,
+      title: label,
+      message: `Commande ${orderRef(orderId)} : ${label}${message ? ` — ${message}` : ""}`,
+      data: { status, label },
+    });
+
+    return { event, note };
   });
+
+  // Livraison temps réel APRÈS le commit : si l'envoi échoue, le changement de statut reste enregistré.
+  publishNotification(note);
+
+  return event;
 }

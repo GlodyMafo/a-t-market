@@ -4,6 +4,14 @@ import {
   PawapayDepositStatus,
 } from "./pawapay.status.service";
 
+import {
+  formatUsd,
+  orderRef,
+  publishNotification,
+  recordNotification,
+  type RecordedNotification,
+} from "./notification.service";
+
 /** Devise utilisée pour tous les paiements (sandbox validé en USD). */
 export const PAYMENT_CURRENCY = "USD";
 
@@ -64,10 +72,31 @@ export async function settlePaymentByDepositId(
 
   // --- Échec confirmé par PawaPay ---
   if (remoteStatus === "FAILED") {
-    await prisma.payment.updateMany({
-      where: { id: payment.id, status: "PENDING" },
-      data: { status: "FAILED" },
+       // Le client est prévenu une seule fois : seul l'appel qui fait réellement passer le paiement à FAILED notifie.
+    const note = await prisma.$transaction(async (tx) => {
+      const failed = await tx.payment.updateMany({
+        where: { id: payment.id, status: "PENDING" },
+        data: { status: "FAILED" },
+      });
+      if (failed.count === 0) return null;
+
+      const order = await tx.order.findUnique({
+        where: { id: payment.orderId },
+        select: { userId: true },
+      });
+      if (!order) return null;
+
+      return recordNotification(tx, {
+        userId: order.userId,
+        type: "PAYMENT_FAILED",
+        orderId: payment.orderId,
+        title: "Paiement échoué",
+        message: `Votre paiement de ${formatUsd(payment.amount)} pour la commande ${orderRef(payment.orderId)} n'a pas abouti. Vous pouvez réessayer.`,
+        data: { paymentId: payment.id },
+      });
     });
+    if (note) publishNotification(note);
+
     return { outcome: "FAILED", paymentId: payment.id };
   }
 
@@ -111,7 +140,9 @@ export async function settlePaymentByDepositId(
   }
 
   // --- Transaction atomique ---
-  const outcome = await prisma.$transaction(async (tx) => {
+   const settled = await prisma.$transaction(async (tx) => {
+    const notes: RecordedNotification[] = [];
+
     // On verrouille la commande : deux paiements de la même commande
     // réglés en même temps passent l'un après l'autre.
     await tx.$queryRaw`SELECT id FROM "Order" WHERE id = ${payment.orderId} FOR UPDATE`;
@@ -123,12 +154,12 @@ export async function settlePaymentByDepositId(
     });
 
     if (won.count === 0) {
-      return "ALREADY_FINAL" as const;
+      return { outcome: "ALREADY_FINAL" as const, notes };
     }
 
     const order = await tx.order.findUnique({
       where: { id: payment.orderId },
-      select: { status: true, totalAmount: true },
+      select: { status: true, totalAmount: true, userId: true },
     });
 
     // On ne touche à la commande que si elle attend encore un paiement
@@ -169,16 +200,39 @@ export async function settlePaymentByDepositId(
           },
         });
       }
-      
 
+      // Notification du client, écrite dans la même transaction que le paiement.
+      const ref = orderRef(payment.orderId);
+      const restant = Math.max(toCents(order.totalAmount.toString()) - paidCents, 0) / 100;
+      notes.push(
+        await recordNotification(tx, {
+          userId: order.userId,
+          type: "PAYMENT_CONFIRMED",
+          orderId: payment.orderId,
+          title: "Paiement confirmé",
+          message:
+            newStatus === "PAID"
+              ? `Votre paiement de ${formatUsd(payment.amount)} a été reçu. Votre commande ${ref} est validée.`
+              : `Votre paiement de ${formatUsd(payment.amount)} a été reçu pour la commande ${ref}. Il reste ${formatUsd(restant)} à payer.`,
+          data: {
+            paymentId: payment.id,
+            orderStatus: newStatus,
+            paidAmount: payment.amount.toString(),
+            remainingAmount: restant.toFixed(2),
+          },
+        })
+      );
     } else {
       console.error(
         `ALERTE PAIEMENT : paiement ${payment.id} reçu pour une commande au statut ${order?.status}`
       );
     }
 
-    return "PAID" as const;
+    return { outcome: "PAID" as const, notes };
   });
 
-  return { outcome, paymentId: payment.id };
+  // Livraison temps réel APRÈS le commit : si l'envoi échoue, le paiement reste enregistré.
+  settled.notes.forEach(publishNotification);
+
+  return { outcome: settled.outcome, paymentId: payment.id };
 }
