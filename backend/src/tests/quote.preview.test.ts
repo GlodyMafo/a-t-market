@@ -192,7 +192,71 @@ test("Sous-catégorie absente, inconnue, inactive ou démesurée : refusée AVAN
   assert.equal(appels.length, 0);
 });
 
-test("Devise autre que USD : refusée (jamais interprétée comme des dollars)", async () => {
+test("NOON en AED : conversion USD et métadonnées conservées dans le ticket", async () => {
+  await creerReglages({ aedToUsdRate: "0.5" });
+  const sub = await creerSousCategorie({ weightKg: "0.5" });
+
+  const noonProduct = produit({
+    source: "NOON",
+    url: "https://www.noon.com/uae-en/product/N12345678V/p/",
+    name: "Produit NOON",
+    price: 100,
+    currency: "AED",
+  });
+
+  const { preview, ticket } = await previewInternationalQuote(
+    {
+      productUrl: noonProduct.url,
+      subCategoryId: sub.id,
+    },
+    {
+      gate: nouvelleGate(),
+      fetchProduct: espion(noonProduct).fetchProduct,
+    }
+  );
+
+  assert.equal(preview.currency, "USD");
+  assert.equal(preview.productPrice, "50");
+  assert.equal(preview.shippingCost, "7");
+  assert.equal(preview.commissionCost, "7.5");
+  assert.equal(preview.fixedFee, "8");
+  assert.equal(preview.totalPrice, "72.5");
+
+  const verified = verifyQuotePreviewTicket(ticket);
+
+  assert.equal(verified.productPrice, "50");
+  assert.equal(verified.sourceProductPrice, "100.00");
+  assert.equal(verified.sourceCurrency, "AED");
+  assert.equal(verified.exchangeRate, "0.5");
+});
+
+test("NOON en AED sans taux configuré : refusé", async () => {
+  await creerReglages();
+  const sub = await creerSousCategorie({ weightKg: "0.5" });
+
+  const noonProduct = produit({
+    source: "NOON",
+    url: "https://www.noon.com/uae-en/product/N12345678V/p/",
+    price: 100,
+    currency: "AED",
+  });
+
+  await assert.rejects(
+    previewInternationalQuote(
+      {
+        productUrl: noonProduct.url,
+        subCategoryId: sub.id,
+      },
+      {
+        gate: nouvelleGate(),
+        fetchProduct: espion(noonProduct).fetchProduct,
+      }
+    ),
+    /taux de conversion/i
+  );
+});
+
+test("Devises non prises en charge : refusées", async () => {
   await creerReglages();
   const sub = await creerSousCategorie({ weightKg: "0.5" });
 
@@ -200,9 +264,12 @@ test("Devise autre que USD : refusée (jamais interprétée comme des dollars)",
     await assert.rejects(
       previewInternationalQuote(
         { productUrl: URL_OK, subCategoryId: sub.id },
-        { gate: nouvelleGate(), fetchProduct: espion(produit({ currency })).fetchProduct }
+        {
+          gate: nouvelleGate(),
+          fetchProduct: espion(produit({ currency })).fetchProduct,
+        }
       ),
-      /devise/,
+      /devise/i,
       currency
     );
   }
@@ -370,4 +437,35 @@ test("Cache borné : les plus anciennes entrées sont évincées", async () => {
   await gate.get("https://www.shein.com/1", f); // doit être ré-extrait
 
   assert.equal(urls.filter((u) => u.endsWith("/1")).length, 2);
+});
+
+
+
+test("NOON en AED avec taux invalide : refusé", async () => {
+  for (const rate of ["0", "-0.5", "11"]) {
+    await resetTestDb();
+    await creerReglages({ aedToUsdRate: rate });
+    const sub = await creerSousCategorie({ weightKg: "0.5" });
+
+    const noonProduct = produit({
+      source: "NOON",
+      url: "https://www.noon.com/uae-en/product/N12345678V/p/",
+      price: 100,
+      currency: "AED",
+    });
+
+    await assert.rejects(
+      previewInternationalQuote(
+        {
+          productUrl: noonProduct.url,
+          subCategoryId: sub.id,
+        },
+        {
+          gate: nouvelleGate(),
+          fetchProduct: espion(noonProduct).fetchProduct,
+        }
+      ),
+      /taux de conversion/i
+    );
+  }
 });

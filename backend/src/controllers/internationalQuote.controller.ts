@@ -1,3 +1,10 @@
+import { prisma } from "../lib/prisma";
+import {
+  createQuoteFromTicket,
+  QuoteTicketError,
+} from "../services/quoteFromTicket";
+import { verifyQuotePreviewTicket } from "../services/quotePreviewTicket";
+
 import { safeMessage } from "../utils/appError";
 import { Request, Response } from "express";
 import {
@@ -29,6 +36,87 @@ export async function createInternationalQuoteController(
       });
     }
 
+        // Création depuis un aperçu signé : aucune nouvelle extraction Apify.
+    if (req.body && Object.prototype.hasOwnProperty.call(req.body, "ticket")) {
+      const { ticket: rawTicket, options } = req.body;
+
+      let ticket;
+
+      try {
+        ticket = verifyQuotePreviewTicket(rawTicket);
+      } catch {
+        return res.status(400).json({
+          success: false,
+          message: "Ticket d'aperçu invalide ou expiré.",
+        });
+      }
+
+      // Un ticket déjà utilisé par le même utilisateur retrouve son devis.
+      const existing = await prisma.internationalQuote.findUnique({
+        where: { previewId: ticket.id },
+      });
+
+      if (existing) {
+        if (existing.userId !== userId) {
+          return res.status(409).json({
+            success: false,
+            message: "Ce ticket a déjà été utilisé.",
+          });
+        }
+
+        return res.status(200).json({
+          success: true,
+          data: existing,
+        });
+      }
+
+      try {
+        const quote = await prisma.$transaction(async (tx) => {
+          return createQuoteFromTicket(tx, userId, ticket, options);
+        });
+
+        return res.status(201).json({
+          success: true,
+          data: quote,
+        });
+      } catch (error: unknown) {
+        if (error instanceof QuoteTicketError) {
+          return res.status(400).json({
+            success: false,
+            message: error.message,
+          });
+        }
+
+        // Deux soumissions simultanées : la contrainte previewId @unique protège la base.
+        if (
+          typeof error === "object" &&
+          error !== null &&
+          "code" in error &&
+          error.code === "P2002"
+        ) {
+          const reused = await prisma.internationalQuote.findUnique({
+            where: { previewId: ticket.id },
+          });
+
+          if (reused?.userId === userId) {
+            return res.status(200).json({
+              success: true,
+              data: reused,
+            });
+          }
+
+          if (reused) {
+            return res.status(409).json({
+              success: false,
+              message: "Ce ticket a déjà été utilisé.",
+            });
+          }
+        }
+
+        throw error;
+      }
+    }
+
     if (!userId || !productUrl || !subCategoryId) {
       return res.status(400).json({
         success: false,
@@ -43,9 +131,18 @@ export async function createInternationalQuoteController(
     const product = await externalProductService.fetchProduct(parsedUrl.href);
 
     // Les montants sont en dollars : on refuse toute autre devise au lieu de l'interpréter comme des USD.
-    if (String(product.currency).toUpperCase() !== "USD") {
+    const currency = String(product.currency).toUpperCase();
+
+    if (currency !== "USD" && currency !== "AED") {
       throw new Error("La devise de ce produit n'est pas prise en charge.");
     }
+
+    if (product.source !== "SHEIN" && product.source !== "NOON") {
+      throw new Error("Cette marketplace n'est pas encore prise en charge.");
+    }
+
+    const supportedCurrency: "USD" | "AED" =
+      currency === "AED" ? "AED" : "USD";
 
     const quote = await createInternationalQuote(
       userId,
@@ -54,7 +151,8 @@ export async function createInternationalQuoteController(
       Number(product.price),
       subCategoryId,
       product.weightKg,
-      options
+      options,
+      supportedCurrency
     );
 
     return res.status(201).json({

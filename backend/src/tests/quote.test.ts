@@ -149,6 +149,8 @@ test("Réglages initiaux : 15 % / 14 $ par kg / 8 $", async () => {
   assert.equal(s.commissionRate.toString(), "15");
   assert.equal(s.chinaPricePerKg.toString(), "14");
   assert.equal(s.fixedFee.toString(), "8");
+  assert.equal(s.aedToUsdRate, null);
+
 });
 
 test("L'initialisation n'écrase JAMAIS des réglages existants", async () => {
@@ -186,6 +188,11 @@ test("Réglages invalides refusés, base inchangée", async () => {
     { commissionRate: null },
     { id: "autre", commissionRate: 15 },
     { createdAt: "2000-01-01" },
+    { aedToUsdRate: 0 },
+    { aedToUsdRate: -0.27 },
+    { aedToUsdRate: 10.1 },
+    { aedToUsdRate: "0.27" },
+    { aedToUsdRate: null },
     {},
     null,
     "texte",
@@ -196,5 +203,14 @@ test("Réglages invalides refusés, base inchangée", async () => {
     await assert.rejects(updateSettings(body), /Réglages invalides|Aucun réglage/, JSON.stringify(body));
   }
   const s = await prisma.globalSettings.findFirstOrThrow();
+  assert.equal(s.commissionRate.toString(), "15");
+});
+
+test("Modification du taux AED vers USD", async () => {
+  await creerReglages();
+
+  const s = await updateSettings({ aedToUsdRate: 0.27 });
+
+  assert.equal(s.aedToUsdRate?.toString(), "0.27");
   assert.equal(s.commissionRate.toString(), "15");
 });

@@ -123,14 +123,21 @@ export async function creerSousCategorie(opts?: { weightKg?: string; active?: bo
   return sub;
 }
 
+
 export async function creerReglages(
-  opts?: { commission?: string; perKg?: string; fee?: string }
+  opts?: {
+    commission?: string;
+    perKg?: string;
+    fee?: string;
+    aedToUsdRate?: string | null;
+  }
 ) {
   return prisma.globalSettings.create({
     data: {
       commissionRate: opts?.commission ?? "15",
       chinaPricePerKg: opts?.perKg ?? "14",
       fixedFee: opts?.fee ?? "8",
+      aedToUsdRate: opts?.aedToUsdRate ?? null,
     },
   });
 }

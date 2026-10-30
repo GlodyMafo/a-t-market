@@ -6,8 +6,9 @@ import { initRealtime } from "./realtime/socket";
 import { initializeSettings } from "./services/settings.service";
 import { startPaymentReconciliationJob } from "./jobs/payment.reconciliation.job";
 import { startOrderExpirationJob } from "./jobs/order.expiration.job";
+import { env } from "./config/env";
 
-const PORT = Number(process.env.PORT) || 5000;
+const PORT = env.PORT;
 
 const server = http.createServer(app);
 

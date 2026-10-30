@@ -252,7 +252,6 @@ model CartItem {
   quantity Int @default(1)
 
   @@unique([cartId, productId])
-
   @@unique([cartId, quoteId])
 }
 
@@ -309,7 +308,6 @@ model OrderItem {
 
   @@index([quoteId])
 }
-
 
 model Payment {
   id String @id @default(cuid())
@@ -382,14 +380,20 @@ model InternationalQuote {
 
   currency String @default("USD")
 
+  sourceProductPrice Decimal? @db.Decimal(10, 2)
+
+  sourceCurrency String?
+
+  exchangeRate Decimal? @db.Decimal(10, 6)
+
   weightSource QuoteWeightSource?
 
   commissionRate Decimal? @db.Decimal(10, 2)
 
   chinaPricePerKg Decimal? @db.Decimal(10, 2)
-  
+
   fixedFee Decimal? @db.Decimal(10, 2)
-  
+
   revisions QuoteRevision[]
 
   previewId String? @unique
@@ -466,6 +470,8 @@ model GlobalSettings {
 
   fixedFee Decimal @db.Decimal(10, 2)
 
+  aedToUsdRate Decimal? @db.Decimal(10, 6)
+
   createdAt DateTime @default(now())
 
   updatedAt DateTime @updatedAt
@@ -534,16 +540,16 @@ model WeightCatalog {
 }
 
 model QuoteRevision {
-  id String @id @default(cuid())
-  quoteId String
-  quote InternationalQuote @relation(fields: [quoteId], references: [id], onDelete: Restrict)
-  adminId String
-  admin User @relation(fields: [adminId], references: [id], onDelete: Restrict)
-  action QuoteRevisionAction
-  note String?
+  id             String              @id @default(cuid())
+  quoteId        String
+  quote          InternationalQuote  @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+  adminId        String
+  admin          User                @relation(fields: [adminId], references: [id], onDelete: Restrict)
+  action         QuoteRevisionAction
+  note           String?
   snapshotBefore Json
-  snapshotAfter Json
-  createdAt DateTime @default(now())
+  snapshotAfter  Json
+  createdAt      DateTime            @default(now())
 
   @@index([quoteId])
 }
@@ -580,6 +586,5 @@ model Notification {
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
-
   @@index([userId, readAt])
 }

@@ -1,3 +1,4 @@
+
 import crypto from "node:crypto";
 import { z } from "zod";
 
@@ -5,12 +6,16 @@ import { env } from "../config/env";
 import { PREVIEW_TICKET_TTL_HOURS } from "../config/quotes";
 
 const money = z.string().regex(/^\d{1,8}(\.\d{1,2})?$/);
+const exchangeRateSchema = z
+  .string()
+  .regex(/^\d{1,2}(\.\d{1,6})?$/)
+  .refine((value) => Number(value) > 0 && Number(value) <= 10);
 
 const ticketSchema = z
   .object({
     v: z.literal(1),
     id: z.string().uuid(),
-    exp: z.number().int(), // secondes depuis 1970
+    exp: z.number().int(),
     productUrl: z.string().min(1).max(2000),
     productName: z.string().min(1).max(300),
     imageUrl: z.string().max(2000).nullable(),
@@ -18,23 +23,56 @@ const ticketSchema = z
     weightKg: money.nullable(),
     weightSource: z.enum(["EXTRACTED", "CATALOG_ESTIMATE"]).nullable(),
     subCategoryId: z.string().min(1).max(100),
-    // Taux utilisés pour l'aperçu : conservés pour que le prix annoncé reste celui du devis
     commissionRate: money,
     chinaPricePerKg: money,
     fixedFee: money,
+
+    // Facultatifs pour accepter les anciens tickets SHEIN.
+    sourceProductPrice: money.nullable().optional(),
+    sourceCurrency: z.enum(["AED"]).nullable().optional(),
+    exchangeRate: exchangeRateSchema.nullable().optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((ticket, ctx) => {
+    const fields = [
+      ticket.sourceProductPrice,
+      ticket.sourceCurrency,
+      ticket.exchangeRate,
+    ];
+
+    const populated = fields.filter(
+      (value) => value !== undefined && value !== null
+    ).length;
+
+    if (populated !== 0 && populated !== 3) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Informations de conversion incomplètes.",
+      });
+    }
+
+    if (
+      ticket.sourceProductPrice !== undefined &&
+      ticket.sourceProductPrice !== null &&
+      Number(ticket.sourceProductPrice) <= 0
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["sourceProductPrice"],
+        message: "Prix d'origine invalide.",
+      });
+    }
+  });
 
 export type QuotePreviewTicket = z.infer<typeof ticketSchema>;
 
-export type QuotePreviewTicketData = Omit<QuotePreviewTicket, "v" | "id" | "exp">;
+export type QuotePreviewTicketData = Omit<
+  QuotePreviewTicket,
+  "v" | "id" | "exp"
+>;
 
 const INVALID = "Ticket d'aperçu invalide ou expiré.";
 
-/**
- * Clé dérivée du secret du serveur, avec un préfixe propre à cet usage :
- * un ticket ne peut jamais servir de jeton de connexion, et inversement.
- */
 function signingKey(): Buffer {
   return crypto
     .createHash("sha256")
@@ -42,21 +80,29 @@ function signingKey(): Buffer {
     .digest();
 }
 
-const b64 = (data: Buffer | string) => Buffer.from(data).toString("base64url");
+const b64 = (data: Buffer | string) =>
+  Buffer.from(data).toString("base64url");
 
 function sign(encodedPayload: string): string {
-  return b64(crypto.createHmac("sha256", signingKey()).update(encodedPayload).digest());
+  return b64(
+    crypto
+      .createHmac("sha256", signingKey())
+      .update(encodedPayload)
+      .digest()
+  );
 }
 
-/**
- * Crée un ticket signé : il prouve que CE prix a été calculé par NOTRE serveur pour CE lien.
- * Le navigateur le conserve dans le panier invité ; il est vérifié à la fusion.
- */
 export function signQuotePreviewTicket(
   data: QuotePreviewTicketData,
   now: Date = new Date()
-): { ticket: string; payload: QuotePreviewTicket; expiresAt: Date } {
-  const exp = Math.floor(now.getTime() / 1000) + PREVIEW_TICKET_TTL_HOURS * 3600;
+): {
+  ticket: string;
+  payload: QuotePreviewTicket;
+  expiresAt: Date;
+} {
+  const exp =
+    Math.floor(now.getTime() / 1000) +
+    PREVIEW_TICKET_TTL_HOURS * 3600;
 
   const payload: QuotePreviewTicket = {
     v: 1,
@@ -74,12 +120,15 @@ export function signQuotePreviewTicket(
   };
 }
 
-/** Vérifie signature, forme et date. Lève une erreur unique pour tout défaut (rien n'est révélé). */
 export function verifyQuotePreviewTicket(
   ticket: unknown,
   now: Date = new Date()
 ): QuotePreviewTicket {
-  if (typeof ticket !== "string" || ticket.length === 0 || ticket.length > 6000) {
+  if (
+    typeof ticket !== "string" ||
+    ticket.length === 0 ||
+    ticket.length > 6000
+  ) {
     throw new Error(INVALID);
   }
 
@@ -93,13 +142,21 @@ export function verifyQuotePreviewTicket(
   const expected = Buffer.from(sign(encoded));
   const received = Buffer.from(signature);
 
-  if (expected.length !== received.length || !crypto.timingSafeEqual(expected, received)) {
+  if (
+    expected.length !== received.length ||
+    !crypto.timingSafeEqual(expected, received)
+  ) {
     throw new Error(INVALID);
   }
 
   let parsed: QuotePreviewTicket;
+
   try {
-    parsed = ticketSchema.parse(JSON.parse(Buffer.from(encoded, "base64url").toString("utf8")));
+    parsed = ticketSchema.parse(
+      JSON.parse(
+        Buffer.from(encoded, "base64url").toString("utf8")
+      )
+    );
   } catch {
     throw new Error(INVALID);
   }

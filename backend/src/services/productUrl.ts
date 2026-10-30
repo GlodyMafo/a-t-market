@@ -1,27 +1,35 @@
-/**
- * Sites marchands pour lesquels un fournisseur d'extraction existe réellement.
- * (On n'annonce pas un site comme "pris en charge" s'il n'a pas de fournisseur.)
- */
-export const SUPPORTED_PRODUCT_DOMAINS = ["shein.com"];
+export const SUPPORTED_PRODUCT_DOMAINS = [
+  "shein.com",
+  "noon.com",
+] as const;
 
-/** Vrai si le nom d'hôte est exactement le domaine, ou l'un de ses sous-domaines. */
-export function hostMatchesDomain(hostname: string, domain: string): boolean {
-  const host = hostname.toLowerCase();
+export type ProductMarketplace = "SHEIN" | "NOON" | "1688";
+
+export function hostMatchesDomain(
+  hostname: string,
+  domain: string
+): boolean {
+  const host = hostname.toLowerCase().replace(/\.$/, "");
+
   return host === domain || host.endsWith(`.${domain}`);
 }
 
 /**
- * Valide et normalise l'URL d'un produit externe.
- * Refuse : URL invalide, protocole autre que http(s), identifiants dans l'URL
- * (https://shein.com@evil.com), port non standard, et tout domaine non pris en charge.
- * La décision repose sur le NOM D'HÔTE analysé, jamais sur une recherche de texte.
+ * Identifie la marketplace d'une URL directe ou d'un lien court connu.
  */
-export function parseSupportedProductUrl(raw: unknown): URL {
-  if (typeof raw !== "string" || raw.trim() === "" || raw.length > 2000) {
+export function detectProductMarketplace(
+  raw: unknown
+): ProductMarketplace {
+  if (
+    typeof raw !== "string" ||
+    raw.trim() === "" ||
+    raw.length > 2000
+  ) {
     throw new Error("URL du produit invalide.");
   }
 
   let url: URL;
+
   try {
     url = new URL(raw.trim());
   } catch {
@@ -32,11 +40,63 @@ export function parseSupportedProductUrl(raw: unknown): URL {
     throw new Error("L'URL doit utiliser HTTP ou HTTPS.");
   }
 
-  if (url.username || url.password) {
+  if (url.username || url.password || url.port) {
     throw new Error("URL du produit invalide.");
   }
 
-  if (url.port) {
+  const host = url.hostname.toLowerCase().replace(/\.$/, "");
+
+  if (hostMatchesDomain(host, "shein.com")) {
+    return "SHEIN";
+  }
+
+  if (hostMatchesDomain(host, "noon.com")) {
+    return "NOON";
+  }
+
+  if (hostMatchesDomain(host, "1688.com")) {
+    return "1688";
+  }
+
+  if (host === "onelink.shein.com") {
+    return "SHEIN";
+  }
+
+  if (host === "qr.1688.com") {
+    return "1688";
+  }
+
+  throw new Error(
+    "Ce lien ne correspond à aucune marketplace prise en charge."
+  );
+}
+
+/**
+ * Valide une URL finale acceptée par un provider opérationnel.
+ * Les liens courts ne sont pas acceptés ici.
+ */
+export function parseSupportedProductUrl(raw: unknown): URL {
+  if (
+    typeof raw !== "string" ||
+    raw.trim() === "" ||
+    raw.length > 2000
+  ) {
+    throw new Error("URL du produit invalide.");
+  }
+
+  let url: URL;
+
+  try {
+    url = new URL(raw.trim());
+  } catch {
+    throw new Error("URL du produit invalide.");
+  }
+
+  if (url.protocol !== "https:" && url.protocol !== "http:") {
+    throw new Error("L'URL doit utiliser HTTP ou HTTPS.");
+  }
+
+  if (url.username || url.password || url.port) {
     throw new Error("URL du produit invalide.");
   }
 

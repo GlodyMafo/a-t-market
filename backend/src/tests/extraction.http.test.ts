@@ -54,7 +54,11 @@ test("extract : domaine non pris en charge refusé AVANT tout appel au fournisse
     const res = await post("/api/external-products/extract", "u-b", { url });
     assert.equal(res.status, 400, url);
     const json = await res.json();
-    assert.match(json.message, /pas encore pris en charge|invalide/, url);
+    assert.match(
+      json.message,
+      /pas encore pris[e]? en charge|invalide|HTTPS/i,
+      url
+    );
   }
 });
 

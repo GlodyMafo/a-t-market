@@ -41,7 +41,8 @@ export async function createInternationalQuote(
   productPrice: number,
   subCategoryId: string,
   extractedWeightKg?: number,
-  options?: string | null
+  options?: string | null,
+  currency: "USD" | "AED" = "USD"
 ) {
   const settings = await prisma.globalSettings.findFirst();
 
@@ -69,6 +70,43 @@ export async function createInternationalQuote(
     throw new Error("Le prix du produit doit être valide.");
   }
 
+  if (currency !== "USD" && currency !== "AED") {
+    throw new Error("La devise du produit n'est pas prise en charge.");
+  }
+
+  let usdProductPrice = productPrice;
+  let exchangeRate: number | null = null;
+  let sourceProductPrice: number | null = null;
+  let sourceCurrency: "AED" | null = null;
+
+  if (currency === "AED") {
+    if (settings.aedToUsdRate === null) {
+      throw new Error(
+        "Le taux de conversion AED vers USD n'est pas configuré."
+      );
+    }
+
+    exchangeRate = Number(settings.aedToUsdRate);
+
+    if (
+      !Number.isFinite(exchangeRate) ||
+      exchangeRate <= 0 ||
+      exchangeRate > 10
+    ) {
+      throw new Error("Le taux de conversion AED vers USD est invalide.");
+    }
+
+    sourceProductPrice = productPrice;
+    sourceCurrency = "AED";
+
+    usdProductPrice =
+      Math.round((productPrice * exchangeRate + Number.EPSILON) * 100) / 100;
+
+    if (!Number.isFinite(usdProductPrice) || usdProductPrice <= 0) {
+      throw new Error("Le prix converti en USD est invalide.");
+    }
+  }
+
   if (
     extractedWeightKg !== undefined &&
     extractedWeightKg !== null &&
@@ -84,8 +122,8 @@ export async function createInternationalQuote(
     subCategoryId
   );
 
-  const quote = computeQuote({
-    productPrice,
+   const quote = computeQuote({
+    productPrice: usdProductPrice,
     weightKg: productWeight,
     settings,
   });
@@ -98,6 +136,9 @@ export async function createInternationalQuote(
       productUrl,
       productName,
       productPrice: quote.productPrice,
+      sourceProductPrice,
+      sourceCurrency,
+      exchangeRate,
       productWeight,
       weightSource,
       currency: "USD",

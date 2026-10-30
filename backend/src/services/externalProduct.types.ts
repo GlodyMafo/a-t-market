@@ -6,9 +6,9 @@
 
 export type ExternalProductSource =
   | "SHEIN"
-  | "AMAZON"
-  | "ALIBABA"
-  | "PINDUODUO";
+  | "1688"
+  | "NOON"
+  
 
 /*
  * =====================================================

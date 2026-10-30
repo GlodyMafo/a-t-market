@@ -1,22 +1,26 @@
+
 import "./setup";
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { parseSupportedProductUrl } from "../services/productUrl";
+import {
+  detectProductMarketplace,
+  parseSupportedProductUrl,
+} from "../services/productUrl";
+
 import { SheinProvider } from "../services/providers/shein.provider";
 
-const ACCEPTEES = [
+const sheinProvider = new SheinProvider();
+
+const URLS_SHEIN_ACCEPTEES = [
   "https://www.shein.com/Some-Product-p-123.html",
   "https://shein.com/x",
   "https://fr.shein.com/x-p-1.html",
   "https://m.shein.com/x",
-  "https://onelink.shein.com/abc",
-  "http://www.shein.com/x",
-  "HTTPS://WWW.SHEIN.COM/X",
 ];
 
-const REFUSEES = [
+const URLS_SHEIN_REFUSEES = [
   "https://shein.com.evil.com/x",
   "https://evilshein.com/x",
   "https://notshein.com/x",
@@ -38,39 +42,133 @@ const REFUSEES = [
   "   ",
 ];
 
-for (const url of ACCEPTEES) {
-  test(`URL acceptée : ${url}`, () => {
+for (const url of URLS_SHEIN_ACCEPTEES) {
+  test(`URL SHEIN acceptée : ${url}`, () => {
     assert.doesNotThrow(() => parseSupportedProductUrl(url));
-    assert.equal(new SheinProvider().supports(url), true);
+    assert.equal(sheinProvider.supports(url), true);
   });
 }
 
-for (const url of REFUSEES) {
+for (const url of URLS_SHEIN_REFUSEES) {
   test(`URL refusée : "${url}"`, () => {
     assert.throws(() => parseSupportedProductUrl(url));
-    assert.equal(new SheinProvider().supports(url), false);
+    assert.equal(sheinProvider.supports(url), false);
   });
 }
 
-test("Sites sans fournisseur réel : refusés avec un message honnête", () => {
+test("NOON est pris en charge et 1688 reste refusé", () => {
+  const noonUrl =
+    "https://www.noon.com/en-sa/N24242330A/p/?o=f4c464480c57e15a";
+
+  assert.equal(
+    detectProductMarketplace(noonUrl),
+    "NOON"
+  );
+
+  assert.equal(
+    parseSupportedProductUrl(noonUrl).hostname,
+    "www.noon.com"
+  );
+
+  const urls1688 = [
+    "https://www.1688.com/",
+    "https://detail.1688.com/offer/123456.html",
+  ];
+
+  for (const url of urls1688) {
+    assert.equal(
+      detectProductMarketplace(url),
+      "1688"
+    );
+
+    assert.throws(
+      () => parseSupportedProductUrl(url),
+      /pas encore pris en charge/
+    );
+  }
+});
+
+test("Sites sans fournisseur réel restent refusés", () => {
   for (const url of [
     "https://www.amazon.com/dp/123",
     "https://www.alibaba.com/product-detail/x",
     "https://www.pinduoduo.com/x",
     "https://item.taobao.com/x",
   ]) {
-    assert.throws(() => parseSupportedProductUrl(url), /pas encore pris en charge/);
+    assert.throws(
+      () => parseSupportedProductUrl(url),
+      /pas encore pris en charge/
+    );
   }
 });
 
 test("Types inattendus et URL démesurée refusés", () => {
-  for (const v of [null, undefined, 42, {}, ["https://shein.com"]]) {
-    assert.throws(() => parseSupportedProductUrl(v));
+  for (const value of [
+    null,
+    undefined,
+    42,
+    {},
+    ["https://shein.com"],
+  ]) {
+    assert.throws(() => parseSupportedProductUrl(value));
   }
-  assert.throws(() => parseSupportedProductUrl("https://shein.com/" + "a".repeat(2100)));
+
+  assert.throws(() =>
+    parseSupportedProductUrl(
+      "https://shein.com/" + "a".repeat(2100)
+    )
+  );
 });
 
 test("L'URL normalisée est renvoyée (espaces retirés)", () => {
-  const u = parseSupportedProductUrl("  https://www.shein.com/x  ");
-  assert.equal(u.href, "https://www.shein.com/x");
+  const url = parseSupportedProductUrl(
+    "  https://www.shein.com/x  "
+  );
+
+  assert.equal(url.href, "https://www.shein.com/x");
+});
+
+test("Les liens directs sont associés à leur marketplace", () => {
+  assert.equal(
+    detectProductMarketplace(
+      "https://www.shein.com/product-p-123.html"
+    ),
+    "SHEIN"
+  );
+
+  assert.equal(
+    detectProductMarketplace(
+      "https://www.noon.com/en-sa/N24242330A/p/"
+    ),
+    "NOON"
+  );
+
+  assert.equal(
+    detectProductMarketplace(
+      "https://detail.1688.com/offer/123456.html"
+    ),
+    "1688"
+  );
+});
+
+test("Les liens courts connus sont associés à leur marketplace", () => {
+  assert.equal(
+    detectProductMarketplace(
+      "https://onelink.shein.com/58/66nfze2i7epe"
+    ),
+    "SHEIN"
+  );
+
+  assert.equal(
+    detectProductMarketplace(
+      "https://qr.1688.com/s/PFiACVoe"
+    ),
+    "1688"
+  );
+});
+
+test("Les domaines inconnus restent refusés", () => {
+  assert.throws(() =>
+    detectProductMarketplace("https://evil.com/?url=shein.com")
+  );
 });

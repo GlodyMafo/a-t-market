@@ -100,6 +100,58 @@ test("Un très petit poids positif n'est jamais ramené à 0 kg", async () => {
 });
 
 // =============== Approbation ===============
+test("NOON : le taux AED/USD initial est conservé après modification des réglages", async () => {
+  await creerReglages();
+
+  await prisma.globalSettings.updateMany({
+    data: { aedToUsdRate: "0.272" },
+  });
+
+  const user = await creerUtilisateur();
+  const admin = await creerAdmin();
+  const sub = await creerSousCategorie();
+
+  const quote = await createInternationalQuote(
+    user.id,
+    "https://www.noon.com/uae-en/product/N70167848V/p/",
+    "Samsung Galaxy S25 Ultra",
+    2949,
+    sub.id,
+    undefined,
+    null,
+    "AED"
+  );
+
+  // Vérification de la conversion initiale.
+  assert.equal(quote.sourceProductPrice?.toString(), "2949");
+  assert.equal(quote.sourceCurrency, "AED");
+  assert.equal(quote.exchangeRate?.toString(), "0.272");
+  assert.equal(quote.productPrice.toString(), "802.13");
+  assert.equal(quote.status, "PENDING_REVIEW");
+
+  // L'administrateur change le taux global après la création.
+  await prisma.globalSettings.updateMany({
+    data: { aedToUsdRate: "0.300000" },
+  });
+
+  const approved = await approveQuote(
+    quote.id,
+    admin.id,
+    { weightKg: 0.5 }
+  );
+
+  // Le prix converti et le taux d'origine restent inchangés.
+  assert.equal(approved.productPrice.toString(), "802.13");
+  assert.equal(approved.sourceProductPrice?.toString(), "2949");
+  assert.equal(approved.sourceCurrency, "AED");
+  assert.equal(approved.exchangeRate?.toString(), "0.272");
+
+  assert.equal(approved.status, "APPROVED");
+  assert.equal(approved.shippingCost.toString(), "7");
+  assert.equal(approved.commissionCost.toString(), "120.32");
+  assert.equal(approved.totalPrice.toString(), "937.45");
+});
+
 
 test("Approbation avec poids admin : devis APPROVED, montant définitif, source ADMIN", async () => {
   const { admin, quote } = await devisEnAttente();

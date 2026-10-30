@@ -157,6 +157,9 @@ test("Ticket valide : devis enregistré avec le prix annoncé (38 $), sans appel
   assert.equal(quote.previewId, payload.id);
   assert.equal(quote.options, "Taille M, noir");
   assert.equal(quote.currency, "USD");
+  assert.equal(quote.sourceProductPrice, null);
+  assert.equal(quote.sourceCurrency, null);
+  assert.equal(quote.exchangeRate, null);
   assert.equal(cart.items.length, 1);
   assert.equal(cart.checkoutReady, true);
 });

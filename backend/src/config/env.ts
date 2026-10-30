@@ -28,7 +28,7 @@ const envSchema = z.object({
   PAWAPAY_DEPOSIT_CALLBACK_URL: requis("PAWAPAY_DEPOSIT_CALLBACK_URL").url(
     "PAWAPAY_DEPOSIT_CALLBACK_URL doit être une URL valide"
   ),
-  PAWAPAY_WEBHOOK_SECRET: z.string().optional(),
+
   APIFY_API_TOKEN: requis("APIFY_API_TOKEN"),
   // Nombre de proxys devant le serveur (1 sur Render) : nécessaire pour lire la vraie IP des visiteurs.
   TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),

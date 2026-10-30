@@ -157,3 +157,58 @@ test("Poids inconnu : un ticket avec weightKg et weightSource à null est valide
   assert.equal(v.weightKg, null);
   assert.equal(v.weightSource, null);
 });
+
+
+test("Ticket NOON : les informations de conversion AED vers USD sont conservées", () => {
+  const { ticket } = signQuotePreviewTicket(
+    {
+      ...DATA,
+      sourceProductPrice: "2949",
+      sourceCurrency: "AED",
+      exchangeRate: "0.272294",
+    },
+    NOW
+  );
+
+  const verified = verifyQuotePreviewTicket(ticket, NOW);
+
+  assert.equal(verified.sourceProductPrice, "2949");
+  assert.equal(verified.sourceCurrency, "AED");
+  assert.equal(verified.exchangeRate, "0.272294");
+});
+
+test("Ticket de conversion incomplet ou invalide : refusé", () => {
+  const { payload } = valid();
+
+  const invalides = [
+    { sourceProductPrice: "100" },
+    { sourceCurrency: "AED" },
+    { exchangeRate: "0.27" },
+    {
+      sourceProductPrice: "0",
+      sourceCurrency: "AED",
+      exchangeRate: "0.27",
+    },
+    {
+      sourceProductPrice: "100",
+      sourceCurrency: "EUR",
+      exchangeRate: "0.27",
+    },
+    {
+      sourceProductPrice: "100",
+      sourceCurrency: "AED",
+      exchangeRate: "0",
+    },
+  ];
+
+  for (const fields of invalides) {
+    assert.throws(
+      () =>
+        verifyQuotePreviewTicket(
+          forge({ ...payload, ...fields }),
+          NOW
+        ),
+      /invalide ou expiré/
+    );
+  }
+});

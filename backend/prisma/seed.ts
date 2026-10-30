@@ -847,11 +847,21 @@ const catalog: CategorySeed[] = [
   },
 ];
 
+
 async function main() {
+  const overwrite = process.env.SEED_OVERWRITE === "true";
+
   console.log("🌱 Démarrage du seed A&T Market...\n");
+  console.log(`Base visée : ${new URL(process.env.DATABASE_URL!).host}`);
+  console.log(
+    overwrite
+      ? "Mode : ÉCRASEMENT (SEED_OVERWRITE=true) : les données existantes seront remises aux valeurs du seed"
+      : "Mode : sûr (seul ce qui manque est créé, rien d'existant n'est modifié)"
+  );
+  console.log("");
 
   // ============================================================
-  // GLOBAL SETTINGS
+  // GLOBAL SETTINGS (jamais écrasés)
   // ============================================================
 
   const settings = await prisma.globalSettings.findFirst();
@@ -864,15 +874,19 @@ async function main() {
         fixedFee: 8,
       },
     });
-
     console.log("✓ GlobalSettings créées");
   } else {
-    console.log("✓ GlobalSettings déjà présentes");
+    console.log("✓ GlobalSettings déjà présentes (non modifiées)");
   }
 
-  let categoryCount = 0;
-  let subCategoryCount = 0;
-  let weightCount = 0;
+  const stats = {
+    categoriesCreated: 0,
+    categoriesExisting: 0,
+    subCategoriesCreated: 0,
+    subCategoriesExisting: 0,
+    weightsCreated: 0,
+    weightsExisting: 0,
+  };
 
   // ============================================================
   // CATALOG
@@ -881,86 +895,95 @@ async function main() {
   for (const categoryData of catalog) {
     const categorySlug = slugify(categoryData.name);
 
-    const category = await prisma.category.upsert({
-      where: {
-        slug: categorySlug,
-      },
-      update: {
-        name: categoryData.name,
-        isActive: true,
-      },
-      create: {
-        name: categoryData.name,
-        slug: categorySlug,
-        isActive: true,
-      },
+    let category = await prisma.category.findUnique({
+      where: { slug: categorySlug },
     });
 
-    categoryCount++;
+    if (!category) {
+      category = await prisma.category.create({
+        data: { name: categoryData.name, slug: categorySlug, isActive: true },
+      });
+      stats.categoriesCreated++;
+    } else {
+      stats.categoriesExisting++;
+      if (overwrite) {
+        category = await prisma.category.update({
+          where: { id: category.id },
+          data: { name: categoryData.name, isActive: true },
+        });
+      }
+    }
 
     for (const subCategoryData of categoryData.subCategories) {
       const subCategorySlug = slugify(
         `${categoryData.name}-${subCategoryData.name}`
       );
 
-      const subCategory = await prisma.subCategory.upsert({
-        where: {
-          slug: subCategorySlug,
-        },
-        update: {
-          name: subCategoryData.name,
-          categoryId: category.id,
-          isActive: true,
-          description: subCategoryData.notes ?? null,
-        },
-        create: {
-          name: subCategoryData.name,
-          slug: subCategorySlug,
-          categoryId: category.id,
-          isActive: true,
-          description: subCategoryData.notes ?? null,
-        },
+      let subCategory = await prisma.subCategory.findUnique({
+        where: { slug: subCategorySlug },
       });
 
-      subCategoryCount++;
-
-      // ========================================================
-      // AVEC POIDS → CALCUL AUTOMATIQUE
-      // ========================================================
-
-      if (subCategoryData.weight !== undefined) {
-        await prisma.weightCatalog.upsert({
-          where: {
-            subCategoryId: subCategory.id,
-          },
-          update: {
-            estimatedWeightKg: subCategoryData.weight,
-            notes: subCategoryData.notes ?? null,
-          },
-          create: {
-            subCategoryId: subCategory.id,
-            estimatedWeightKg: subCategoryData.weight,
-            notes: subCategoryData.notes ?? null,
+      if (!subCategory) {
+        subCategory = await prisma.subCategory.create({
+          data: {
+            name: subCategoryData.name,
+            slug: subCategorySlug,
+            categoryId: category.id,
+            isActive: true,
+            description: subCategoryData.notes ?? null,
           },
         });
-
-        weightCount++;
+        stats.subCategoriesCreated++;
+      } else {
+        stats.subCategoriesExisting++;
+        if (overwrite) {
+          subCategory = await prisma.subCategory.update({
+            where: { id: subCategory.id },
+            data: {
+              name: subCategoryData.name,
+              categoryId: category.id,
+              isActive: true,
+              description: subCategoryData.notes ?? null,
+            },
+          });
+        }
       }
 
       // ========================================================
-      // SANS POIDS → REVIEW
-      //
-      // Important :
-      // si cette sous-catégorie possédait auparavant un
-      // WeightCatalog, on le supprime afin qu'elle ne soit
-      // plus considérée comme automatiquement calculable.
+      // POIDS DU CATALOGUE
       // ========================================================
 
-      else {
+      const existingWeight = await prisma.weightCatalog.findUnique({
+        where: { subCategoryId: subCategory.id },
+      });
+
+      if (subCategoryData.weight !== undefined) {
+        if (!existingWeight) {
+          await prisma.weightCatalog.create({
+            data: {
+              subCategoryId: subCategory.id,
+              estimatedWeightKg: subCategoryData.weight,
+              notes: subCategoryData.notes ?? null,
+            },
+          });
+          stats.weightsCreated++;
+        } else {
+          stats.weightsExisting++;
+          if (overwrite) {
+            await prisma.weightCatalog.update({
+              where: { subCategoryId: subCategory.id },
+              data: {
+                estimatedWeightKg: subCategoryData.weight,
+                notes: subCategoryData.notes ?? null,
+              },
+            });
+          }
+        }
+      } else if (overwrite) {
+        // Ancien comportement, uniquement sur demande explicite :
+        // une sous-catégorie sans poids dans le seed perd son poids catalogué.
         await prisma.weightCatalog.deleteMany({
-          where: {
-            subCategoryId: subCategory.id,
-          },
+          where: { subCategoryId: subCategory.id },
         });
       }
     }
@@ -973,9 +996,15 @@ async function main() {
   console.log("\n====================================");
   console.log("🌱 SEED A&T MARKET TERMINÉ");
   console.log("====================================");
-  console.log(`Catégories       : ${categoryCount}`);
-  console.log(`Sous-catégories  : ${subCategoryCount}`);
-  console.log(`Poids catalogués : ${weightCount}`);
+  console.log(
+    `Catégories       : ${stats.categoriesCreated} créées, ${stats.categoriesExisting} déjà présentes`
+  );
+  console.log(
+    `Sous-catégories  : ${stats.subCategoriesCreated} créées, ${stats.subCategoriesExisting} déjà présentes`
+  );
+  console.log(
+    `Poids catalogués : ${stats.weightsCreated} créés, ${stats.weightsExisting} déjà présents`
+  );
   console.log("====================================\n");
 }
 
