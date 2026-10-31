@@ -29,7 +29,7 @@ const ticketSchema = z
 
     // Facultatifs pour accepter les anciens tickets SHEIN.
     sourceProductPrice: money.nullable().optional(),
-    sourceCurrency: z.enum(["AED"]).nullable().optional(),
+    sourceCurrency: z.enum(["AED", "CNY"]).nullable().optional(),
     exchangeRate: exchangeRateSchema.nullable().optional(),
   })
   .strict()

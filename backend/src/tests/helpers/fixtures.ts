@@ -130,6 +130,7 @@ export async function creerReglages(
     perKg?: string;
     fee?: string;
     aedToUsdRate?: string | null;
+    cnyToUsdRate?: string | null;
   }
 ) {
   return prisma.globalSettings.create({
@@ -138,6 +139,7 @@ export async function creerReglages(
       chinaPricePerKg: opts?.perKg ?? "14",
       fixedFee: opts?.fee ?? "8",
       aedToUsdRate: opts?.aedToUsdRate ?? null,
+      cnyToUsdRate: opts?.cnyToUsdRate ?? null,
     },
   });
 }

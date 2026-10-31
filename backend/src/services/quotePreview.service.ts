@@ -1,4 +1,3 @@
-
 import { prisma } from "../lib/prisma";
 import { ExternalProductService } from "./externalProduct.service";
 import { NormalizedExternalProduct } from "./externalProduct.types";
@@ -168,7 +167,11 @@ export async function previewInternationalQuote(
     );
   }
 
-  if (sourceCurrency !== "USD" && sourceCurrency !== "AED") {
+  if (
+    sourceCurrency !== "USD" &&
+    sourceCurrency !== "AED" &&
+    sourceCurrency !== "CNY"
+  ) {
     throw new PreviewInputError(
       "La devise de ce produit n'est pas prise en charge."
     );
@@ -176,7 +179,7 @@ export async function previewInternationalQuote(
 
   let price = sourcePrice;
   let sourceProductPrice: string | null = null;
-  let ticketSourceCurrency: "AED" | null = null;
+  let ticketSourceCurrency: "AED" | "CNY" | null = null;
   let exchangeRate: string | null = null;
 
   if (sourceCurrency === "AED") {
@@ -208,8 +211,42 @@ export async function previewInternationalQuote(
     exchangeRate = rate.toString();
   }
 
+  if (sourceCurrency === "CNY") {
+    const rate = Number(settings.cnyToUsdRate);
+
+    if (
+      settings.cnyToUsdRate === null ||
+      !Number.isFinite(rate) ||
+      rate <= 0 ||
+      rate > 10
+    ) {
+      throw new PreviewInputError(
+        "Le taux de conversion CNY vers USD n'est pas configuré correctement."
+      );
+    }
+
+    price = Math.round(
+      (sourcePrice * rate + Number.EPSILON) * 100
+    ) / 100;
+
+    if (!Number.isFinite(price) || price <= 0) {
+      throw new PreviewInputError(
+        "La conversion du prix en USD a échoué."
+      );
+    }
+
+    sourceProductPrice = sourcePrice.toFixed(2);
+    ticketSourceCurrency = "CNY";
+    exchangeRate = rate.toString();
+  }
+
+  const extractedWeight =
+    product.source === "1688"
+      ? product.weightKgMax
+      : product.weightKg;
+
   const { weight, source } = await resolveQuoteWeight(
-    product.weightKg,
+    extractedWeight,
     subCategoryId
   );
 

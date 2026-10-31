@@ -472,6 +472,8 @@ model GlobalSettings {
 
   aedToUsdRate Decimal? @db.Decimal(10, 6)
 
+  cnyToUsdRate Decimal? @db.Decimal(10, 6)
+
   createdAt DateTime @default(now())
 
   updatedAt DateTime @updatedAt

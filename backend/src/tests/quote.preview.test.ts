@@ -256,6 +256,172 @@ test("NOON en AED sans taux configuré : refusé", async () => {
   );
 });
 
+test("1688 en CNY : conversion USD, poids maximal extrait et métadonnées conservées", async () => {
+  await creerReglages({ cnyToUsdRate: "0.1" });
+  const sub = await creerSousCategorie();
+
+  const product1688 = produit({
+    source: "1688",
+    url: "https://detail.1688.com/offer/900656100526.html",
+    name: "Produit 1688",
+    price: 100,
+    currency: "CNY",
+    weightKg: 11,
+    weightKgMin: 11,
+    weightKgMax: 18,
+  });
+
+  const { preview, ticket } = await previewInternationalQuote(
+    {
+      productUrl: product1688.url,
+      subCategoryId: sub.id,
+    },
+    {
+      gate: nouvelleGate(),
+      fetchProduct: espion(product1688).fetchProduct,
+    }
+  );
+
+  assert.equal(preview.currency, "USD");
+  assert.equal(preview.productPrice, "10");
+  assert.equal(preview.weightKg, "18");
+  assert.equal(preview.weightSource, "EXTRACTED");
+  assert.equal(preview.shippingCost, "252");
+  assert.equal(preview.commissionCost, "1.5");
+  assert.equal(preview.fixedFee, "8");
+  assert.equal(preview.totalPrice, "271.5");
+
+  const verified = verifyQuotePreviewTicket(ticket);
+
+  assert.equal(verified.productPrice, "10");
+  assert.equal(verified.sourceProductPrice, "100.00");
+  assert.equal(verified.sourceCurrency, "CNY");
+  assert.equal(verified.exchangeRate, "0.1");
+  assert.equal(verified.weightKg, "18");
+});
+
+
+test("1688 sans poids maximal extrait : utilise le poids du catalogue", async () => {
+  await creerReglages({ cnyToUsdRate: "0.1" });
+  const sub = await creerSousCategorie({ weightKg: "2.5" });
+
+  const product1688 = produit({
+    source: "1688",
+    url: "https://detail.1688.com/offer/900656100526.html",
+    price: 100,
+    currency: "CNY",
+    weightKg: undefined,
+    weightKgMin: 11,
+    weightKgMax: undefined,
+  });
+
+  const { preview, ticket } = await previewInternationalQuote(
+    {
+      productUrl: product1688.url,
+      subCategoryId: sub.id,
+    },
+    {
+      gate: nouvelleGate(),
+      fetchProduct: espion(product1688).fetchProduct,
+    }
+  );
+
+  assert.equal(preview.weightKg, "2.5");
+  assert.equal(preview.weightSource, "CATALOG_ESTIMATE");
+  assert.equal(preview.shippingCost, "35");
+  assert.equal(preview.isProvisional, false);
+  assert.equal(verifyQuotePreviewTicket(ticket).weightKg, "2.5");
+});
+
+test("1688 sans poids extrait ni poids catalogue : aperçu provisoire", async () => {
+  await creerReglages({ cnyToUsdRate: "0.1" });
+  const sub = await creerSousCategorie();
+
+  const product1688 = produit({
+    source: "1688",
+    url: "https://detail.1688.com/offer/900656100526.html",
+    price: 100,
+    currency: "CNY",
+    weightKg: undefined,
+    weightKgMin: undefined,
+    weightKgMax: undefined,
+  });
+
+  const { preview, ticket } = await previewInternationalQuote(
+    {
+      productUrl: product1688.url,
+      subCategoryId: sub.id,
+    },
+    {
+      gate: nouvelleGate(),
+      fetchProduct: espion(product1688).fetchProduct,
+    }
+  );
+
+  assert.equal(preview.weightKg, null);
+  assert.equal(preview.weightSource, null);
+  assert.equal(preview.shippingCost, "0");
+  assert.equal(preview.isProvisional, true);
+  assert.equal(preview.status, "PENDING_REVIEW");
+  assert.match(preview.notice ?? "", /provisoire/i);
+  assert.equal(verifyQuotePreviewTicket(ticket).weightKg, null);
+});
+
+test("1688 en CNY sans taux configuré : refusé", async () => {
+  await creerReglages();
+  const sub = await creerSousCategorie({ weightKg: "0.5" });
+
+  const product1688 = produit({
+    source: "1688",
+    url: "https://detail.1688.com/offer/900656100526.html",
+    price: 100,
+    currency: "CNY",
+  });
+
+  await assert.rejects(
+    previewInternationalQuote(
+      {
+        productUrl: product1688.url,
+        subCategoryId: sub.id,
+      },
+      {
+        gate: nouvelleGate(),
+        fetchProduct: espion(product1688).fetchProduct,
+      }
+    ),
+    /taux de conversion/i
+  );
+});
+
+test("1688 en CNY avec taux invalide : refusé", async () => {
+  for (const rate of ["0", "-0.5", "11"]) {
+    await resetTestDb();
+    await creerReglages({ cnyToUsdRate: rate });
+    const sub = await creerSousCategorie({ weightKg: "0.5" });
+
+    const product1688 = produit({
+      source: "1688",
+      url: "https://detail.1688.com/offer/900656100526.html",
+      price: 100,
+      currency: "CNY",
+    });
+
+    await assert.rejects(
+      previewInternationalQuote(
+        {
+          productUrl: product1688.url,
+          subCategoryId: sub.id,
+        },
+        {
+          gate: nouvelleGate(),
+          fetchProduct: espion(product1688).fetchProduct,
+        }
+      ),
+      /taux de conversion/i
+    );
+  }
+});
+
 test("Devises non prises en charge : refusées", async () => {
   await creerReglages();
   const sub = await creerSousCategorie({ weightKg: "0.5" });

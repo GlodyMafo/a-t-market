@@ -36,6 +36,8 @@ const settingsUpdateSchema = z
     fixedFee: z.number().min(0).max(1000),
     // Nombre de dollars USD obtenu pour 1 AED.
     aedToUsdRate: z.number().positive().max(10),
+    // Nombre de dollars USD obtenu pour 1 CNY.
+    cnyToUsdRate: z.number().positive().max(10),
   })
   .partial()
   .strict()
@@ -49,9 +51,10 @@ export async function updateSettings(data: unknown) {
   if (!parsed.success) {
     throw new Error(
       "Réglages invalides : commissionRate entre 0 et 100, " +
-        "chinaPricePerKg entre 0 (exclu) et 500, " +
-        "fixedFee entre 0 et 1000, " +
-        "aedToUsdRate entre 0 (exclu) et 10, nombres uniquement."
+      "chinaPricePerKg entre 0 (exclu) et 500, " +
+      "fixedFee entre 0 et 1000, " +
+      "aedToUsdRate entre 0 (exclu) et 10, nombres uniquement. " +
+      "cnyToUsdRate entre 0 (exclu) et 10, nombres uniquement."
     );
   }
 
