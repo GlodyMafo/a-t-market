@@ -1,6 +1,7 @@
 export const SUPPORTED_PRODUCT_DOMAINS = [
   "shein.com",
   "noon.com",
+  "1688.com",
 ] as const;
 
 export type ProductMarketplace = "SHEIN" | "NOON" | "1688";
@@ -106,6 +107,18 @@ export function parseSupportedProductUrl(raw: unknown): URL {
 
   if (!supported) {
     throw new Error("Ce site n'est pas encore pris en charge.");
+  }
+
+  if (hostMatchesDomain(url.hostname, "1688.com")) {
+    const is1688ProductUrl =
+      url.hostname.toLowerCase() === "detail.1688.com" &&
+      /^\/offer\/\d+\.html$/.test(url.pathname);
+
+    if (!is1688ProductUrl) {
+      throw new Error(
+        "Cette URL 1688 ne correspond pas à une fiche produit valide."
+      );
+    }
   }
 
   return url;

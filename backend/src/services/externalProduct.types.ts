@@ -80,8 +80,10 @@ export interface ExternalProductVariant {
 
   attributes: ExternalProductVariantAttribute[];
 
+  // Prix de la variante dans sa devise source.
   price?: number;
 
+  // Devise du prix de la variante (USD, AED, CNY, etc.).
   currency?: string;
 
   stock?: number;
@@ -89,6 +91,9 @@ export interface ExternalProductVariant {
   inStock: boolean;
 
   quickShip?: boolean;
+
+  // Image propre à cette variante, si fournie par la source.
+  imageUrl?: string;
 }
 
 /*
@@ -255,9 +260,28 @@ export interface NormalizedExternalProduct {
 
   category?: string;
 
+  // Prix principal dans la devise source du marketplace.
   price: number;
 
+  // Devise du prix principal : USD, AED, CNY, etc.
+  // La conversion vers USD appartient au service de devis.
   currency: string;
+
+    /*
+   * INFORMATIONS COMMERCIALES 1688
+   */
+
+  priceMin?: number;
+
+  priceMax?: number;
+
+  minOrderQuantity?: number;
+
+  unit?: string;
+
+  weightKgMin?: number;
+
+  weightKgMax?: number;
 
   /*
    * IMAGES

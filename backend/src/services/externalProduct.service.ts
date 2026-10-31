@@ -9,6 +9,7 @@ import {
 
 import { SheinProvider } from "./providers/shein.provider";
 import { NoonProvider } from "./providers/noon.provider";
+import { Product1688Provider } from "./providers/1688.provider";
 
 import { parseSupportedProductUrl } from "./productUrl";
 import {
@@ -24,6 +25,7 @@ export class ExternalProductService {
   this.providers = [
     new SheinProvider(),
     new NoonProvider(),
+    new Product1688Provider(),
   ];
 }
 

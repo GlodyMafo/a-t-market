@@ -56,7 +56,7 @@ for (const url of URLS_SHEIN_REFUSEES) {
   });
 }
 
-test("NOON est pris en charge et 1688 reste refusé", () => {
+test("NOON et les fiches produits 1688 sont pris en charge", () => {
   const noonUrl =
     "https://www.noon.com/en-sa/N24242330A/p/?o=f4c464480c57e15a";
 
@@ -70,12 +70,32 @@ test("NOON est pris en charge et 1688 reste refusé", () => {
     "www.noon.com"
   );
 
-  const urls1688 = [
-    "https://www.1688.com/",
-    "https://detail.1688.com/offer/123456.html",
-  ];
+  const product1688Url =
+    "https://detail.1688.com/offer/123456.html";
 
-  for (const url of urls1688) {
+  assert.equal(
+    detectProductMarketplace(product1688Url),
+    "1688"
+  );
+
+  const parsed1688Url = parseSupportedProductUrl(product1688Url);
+
+  assert.equal(
+    parsed1688Url.hostname,
+    "detail.1688.com"
+  );
+
+  assert.equal(
+    parsed1688Url.pathname,
+    "/offer/123456.html"
+  );
+
+  for (const url of [
+    "https://www.1688.com/",
+    "https://detail.1688.com/",
+    "https://detail.1688.com/offer/abc.html",
+    "https://detail.1688.com/offer/123456",
+  ]) {
     assert.equal(
       detectProductMarketplace(url),
       "1688"
@@ -83,7 +103,7 @@ test("NOON est pris en charge et 1688 reste refusé", () => {
 
     assert.throws(
       () => parseSupportedProductUrl(url),
-      /pas encore pris en charge/
+      /URL 1688 ne correspond pas à une fiche produit valide/
     );
   }
 });
