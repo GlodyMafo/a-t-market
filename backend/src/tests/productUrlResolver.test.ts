@@ -315,3 +315,55 @@ test("HTTP : erreur de transport propagée", async () => {
     /Erreur réseau simulée/
   );
 });
+
+test("Résolution : lien court SHEIN extrait le goods_id du HTML", async () => {
+  const resolver = new ProductUrlResolver({
+    transport: createTransport([
+      {
+        statusCode: 200,
+        headers: {
+          "content-type": "text/html",
+        },
+        body: `
+          <input
+            id="deeplink"
+            value="sheinlink://applink/goods?data=%7B%22goods_id%22%3A%22467348333%22%2C%22url_from%22%3A%22GM76017351099%22%7D"
+          />
+        `,
+      },
+    ]),
+  });
+
+  const result = await resolver.resolve(
+    "https://onelink.shein.com/58/66nfze2i7epe?shc=2_RsupImbLrQF"
+  );
+
+  assert.equal(result.marketplace, "SHEIN");
+  assert.equal(result.redirectCount, 0);
+  assert.equal(
+    result.canonicalUrl,
+    "https://www.shein.com/product-p-467348333.html"
+  );
+});
+
+test("Résolution : lien court SHEIN sans goods_id refusé", async () => {
+  const resolver = new ProductUrlResolver({
+    transport: createTransport([
+      {
+        statusCode: 200,
+        headers: {
+          "content-type": "text/html",
+        },
+        body: "<html><body>Produit introuvable</body></html>",
+      },
+    ]),
+  });
+
+  await assert.rejects(
+    () =>
+      resolver.resolve(
+        "https://onelink.shein.com/58/66nfze2i7epe"
+      ),
+    /Impossible d'extraire l'identifiant du produit/
+  );
+});

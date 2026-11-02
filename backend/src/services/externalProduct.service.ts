@@ -57,14 +57,6 @@ export class ExternalProductService {
     if (inspected.isShortLink) {
       const resolved = await resolveProductUrl(url);
       canonicalUrl = resolved.canonicalUrl;
-
-      console.log(
-        `[External Product] URL originale : ${url}`
-      );
-
-      console.log(
-        `[External Product] URL résolue : ${canonicalUrl}`
-      );
     }
 
     return this.fetchCanonicalProduct(canonicalUrl);

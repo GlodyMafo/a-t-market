@@ -6,6 +6,13 @@ const requis = (nom: string) =>
     .string({ error: `${nom} est obligatoire` })
     .min(1, `${nom} ne peut pas être vide`);
 
+// Une variable laissée vide dans le .env (ex. « ADMIN_NOTIFICATION_EMAIL= ») équivaut à « non définie ».
+const vide = <T extends z.ZodType>(schema: T) =>
+  z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    schema.optional()
+  );
+
 const envSchema = z.object({
   NODE_ENV: z
     .enum(["development", "test", "production"])
@@ -32,9 +39,29 @@ const envSchema = z.object({
   APIFY_API_TOKEN: requis("APIFY_API_TOKEN"),
   // Nombre de proxys devant le serveur (1 sur Render) : nécessaire pour lire la vraie IP des visiteurs.
   TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
-    // Domaines du frontend autorisés à appeler l'API, séparés par des virgules.
+  // Domaines du frontend autorisés à appeler l'API, séparés par des virgules.
   // Exemple : https://at-market.vercel.app,https://www.atmarket.cd
   CORS_ORIGINS: z.string().optional(),
+
+  // ---------- E-mail (Gmail SMTP) : tout ou rien ----------
+  SMTP_HOST: vide(z.string().min(1)),
+  SMTP_PORT: vide(z.coerce.number().int().min(1).max(65535)),
+  SMTP_SECURE: vide(
+    z.enum(["true", "false"], { error: "SMTP_SECURE doit valoir true ou false" })
+  ),
+  SMTP_USER: vide(z.string().min(1)),
+  SMTP_PASSWORD: vide(z.string().min(1)),
+  SMTP_FROM_NAME: vide(z.string().min(1)),
+  SMTP_FROM_EMAIL: vide(
+    z.email("SMTP_FROM_EMAIL doit être une adresse e-mail valide")
+  ),
+
+  // Adresse du site (sans chemin) : sert uniquement à mettre un lien dans les e-mails.
+  FRONTEND_URL: vide(z.url("FRONTEND_URL doit être une URL valide")),
+  // Destinataire des alertes administrateur. Vide = aucune alerte.
+  ADMIN_NOTIFICATION_EMAIL: vide(
+    z.email("ADMIN_NOTIFICATION_EMAIL doit être une adresse e-mail valide")
+  ),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -66,9 +93,86 @@ if (parsed.data.NODE_ENV === "production" && origines.length === 0) {
   process.exit(1);
 }
 
+// ---------- Validation de la configuration e-mail ----------
+const d = parsed.data;
+
+const SMTP_CLES = [
+  "SMTP_HOST",
+  "SMTP_PORT",
+  "SMTP_USER",
+  "SMTP_PASSWORD",
+  "SMTP_FROM_NAME",
+  "SMTP_FROM_EMAIL",
+] as const;
+
+const renseignees = SMTP_CLES.filter((k) => d[k] !== undefined);
+const manquantes = SMTP_CLES.filter((k) => d[k] === undefined);
+
+if (renseignees.length > 0 && manquantes.length > 0) {
+  console.error(
+    `Configuration invalide : l'e-mail est partiellement configuré. Variables manquantes : ${manquantes.join(", ")}.`
+  );
+  process.exit(1);
+}
+
+if (renseignees.length === 0 && d.NODE_ENV === "production") {
+  console.error("Configuration invalide : la configuration SMTP est obligatoire en production.");
+  process.exit(1);
+}
+
+const smtpSecure = d.SMTP_SECURE === "true";
+
+if (d.SMTP_PORT === 465 && !smtpSecure) {
+  console.error("Configuration invalide : le port 465 exige SMTP_SECURE=true.");
+  process.exit(1);
+}
+if (d.SMTP_PORT === 587 && smtpSecure) {
+  console.error("Configuration invalide : le port 587 (STARTTLS) exige SMTP_SECURE=false.");
+  process.exit(1);
+}
+
+const frontendUrl = d.FRONTEND_URL?.replace(/\/+$/, "");
+if (frontendUrl) {
+  try {
+    if (new URL(frontendUrl).origin !== frontendUrl) throw new Error();
+  } catch {
+    console.error("Configuration invalide : FRONTEND_URL doit être de la forme https://domaine.tld, sans chemin.");
+    process.exit(1);
+  }
+}
+
+// Les variables SMTP brutes ne sont pas conservées dans `env` : tout passe par l'objet `SMTP` ci-dessous.
+const {
+  SMTP_HOST,
+  SMTP_PORT,
+  SMTP_SECURE,
+  SMTP_USER,
+  SMTP_PASSWORD,
+  SMTP_FROM_NAME,
+  SMTP_FROM_EMAIL,
+  FRONTEND_URL: _frontendBrut,
+  ...reste
+} = parsed.data;
+
 export const env = {
-  ...parsed.data,
+  ...reste,
   // Hors production, le frontend Next.js local est autorisé par défaut.
   CORS_ALLOWED_ORIGINS:
     origines.length > 0 ? origines : ["http://localhost:3000", "http://127.0.0.1:3000"],
+
+  FRONTEND_URL: frontendUrl,
+
+  // null = e-mail désactivé (développement sans compte Gmail).
+  SMTP:
+    renseignees.length === 0
+      ? null
+      : {
+          host: SMTP_HOST!,
+          port: SMTP_PORT!,
+          secure: smtpSecure,
+          user: SMTP_USER!,
+          password: SMTP_PASSWORD!,
+          fromName: SMTP_FROM_NAME!,
+          fromEmail: SMTP_FROM_EMAIL!,
+        },
 };

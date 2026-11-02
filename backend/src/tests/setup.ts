@@ -11,3 +11,19 @@ process.env.PAWAPAY_API_KEY = "test";
 process.env.PAWAPAY_BASE_URL = `http://127.0.0.1:${FAKE_PAWAPAY_PORT}`;
 process.env.PAWAPAY_DEPOSIT_CALLBACK_URL = "http://127.0.0.1:1/callback";
 process.env.APIFY_API_TOKEN = "test";
+
+// Aucun vrai e-mail ne part pendant les tests : la configuration SMTP est effacée.
+// Les tests d'e-mail injectent un transport factice (setMailTransport).
+for (const cle of [
+  "SMTP_HOST",
+  "SMTP_PORT",
+  "SMTP_SECURE",
+  "SMTP_USER",
+  "SMTP_PASSWORD",
+  "SMTP_FROM_NAME",
+  "SMTP_FROM_EMAIL",
+  "FRONTEND_URL",
+  "ADMIN_NOTIFICATION_EMAIL",
+]) {
+  delete process.env[cle];
+}

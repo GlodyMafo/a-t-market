@@ -6,6 +6,7 @@ import { initRealtime } from "./realtime/socket";
 import { initializeSettings } from "./services/settings.service";
 import { startPaymentReconciliationJob } from "./jobs/payment.reconciliation.job";
 import { startOrderExpirationJob } from "./jobs/order.expiration.job";
+import { initMailer } from "./services/email/mailer.service";
 import { env } from "./config/env";
 
 const PORT = env.PORT;
@@ -20,6 +21,9 @@ server.listen(PORT, () => {
 
 startPaymentReconciliationJob();
 startOrderExpirationJob();
+
+// Vérification SMTP non bloquante : Gmail indisponible n'empêche pas le démarrage.
+initMailer();
 
 initializeSettings()
   .then(() => console.log("Global settings initialized"))

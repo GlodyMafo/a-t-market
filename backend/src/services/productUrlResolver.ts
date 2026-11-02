@@ -431,18 +431,7 @@ export class ProductUrlResolver {
                 this.maxResponseBytes
             );
 
-            console.log("[URL Resolver] Réponse :", {
-                url: current.toString(),
-                statusCode: response.statusCode,
-                location: response.headers.location,
-                contentType: response.headers["content-type"],
-                bodyMatches: (response.body ?? "")
-                    .match(/.{0,120}(?:467348333|goods_id|cat-\d+|-p-\d+|productUrl|product_url|canonical|og:url).{0,250}/gi)
-                    ?.slice(0, 30),
-            });
-
             if (response.statusCode >= 200 && response.statusCode < 300) {
-
                 if (
                     marketplace === "SHEIN" &&
                     normalizeHostname(current.hostname) === "onelink.shein.com"
