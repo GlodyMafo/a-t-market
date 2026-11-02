@@ -384,6 +384,8 @@ model InternationalQuote {
 
   sourceCurrency String?
 
+  minOrderQuantity Int?
+
   exchangeRate Decimal? @db.Decimal(10, 6)
 
   weightSource QuoteWeightSource?

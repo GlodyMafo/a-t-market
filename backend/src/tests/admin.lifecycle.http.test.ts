@@ -8,7 +8,7 @@ import jwt from "jsonwebtoken";
 
 import { startTestDb, resetTestDb, stopTestDb } from "./helpers/testDb";
 import {
-  creerAdmin, creerCommande, creerProduit, creerSousCategorie, creerUtilisateur,
+  creerAdmin, creerCommande, creerProduit, creerReglages, creerSousCategorie, creerUtilisateur,
 } from "./helpers/fixtures";
 import { prisma } from "../lib/prisma";
 import app from "../app";
@@ -153,4 +153,60 @@ test("DELETE produit : jamais commandé -> supprimé", async () => {
   assert.equal(r.status, 200);
   assert.equal((await r.json()).data.deleted, true);
   assert.equal(await prisma.product.count({ where: { id: p.id } }), 0);
+});
+
+test("Réglages : lecture admin et configuration du taux CNY/USD", async () => {
+  const t = await admin();
+  await creerReglages();
+
+  const getResponse = await call("GET", "/settings", t);
+  assert.equal(getResponse.status, 200);
+
+  const getBody = await getResponse.json() as any;
+  assert.equal(getBody.success, true);
+  assert.equal(getBody.data.cnyToUsdRate, null);
+
+  const patchResponse = await call("PATCH", "/settings", t, {
+    cnyToUsdRate: 0.14,
+  });
+
+  assert.equal(patchResponse.status, 200);
+
+  const patchBody = await patchResponse.json() as any;
+  assert.equal(patchBody.success, true);
+  assert.equal(Number(patchBody.data.cnyToUsdRate), 0.14);
+
+  const saved = await prisma.globalSettings.findFirstOrThrow();
+  assert.equal(Number(saved.cnyToUsdRate), 0.14);
+});
+
+test("Réglages : taux CNY/USD invalide refusé sans modifier la configuration", async () => {
+  const t = await admin();
+  await creerReglages({ cnyToUsdRate: "0.14" });
+
+  for (const value of [0, -0.1, 10.01, "0.14", null]) {
+    const response = await call("PATCH", "/settings", t, {
+      cnyToUsdRate: value,
+    });
+
+    assert.equal(response.status, 400, `Valeur refusée attendue : ${String(value)}`);
+  }
+
+  const saved = await prisma.globalSettings.findFirstOrThrow();
+  assert.equal(Number(saved.cnyToUsdRate), 0.14);
+});
+
+test("Réglages : accès refusé sans authentification ou avec un compte client", async () => {
+  const user = await creerUtilisateur();
+  const userToken = token(user.id, "USER");
+
+  assert.equal((await call("GET", "/settings", null)).status, 401);
+  assert.equal((await call("PATCH", "/settings", null, {
+    cnyToUsdRate: 0.14,
+  })).status, 401);
+
+  assert.equal((await call("GET", "/settings", userToken)).status, 403);
+  assert.equal((await call("PATCH", "/settings", userToken, {
+    cnyToUsdRate: 0.14,
+  })).status, 403);
 });

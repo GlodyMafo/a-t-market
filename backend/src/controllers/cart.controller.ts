@@ -203,7 +203,8 @@ export async function addQuoteToCartController(
   try {
     const result = await addQuoteToCart(
       req.user!.userId,
-      (req.body ?? {}).quoteId
+      (req.body ?? {}).quoteId,
+      (req.body ?? {}).quantity
     );
 
     return res.status(result.status === "ADDED" ? 201 : 200).json({

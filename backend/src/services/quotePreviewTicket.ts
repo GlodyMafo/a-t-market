@@ -31,6 +31,8 @@ const ticketSchema = z
     sourceProductPrice: money.nullable().optional(),
     sourceCurrency: z.enum(["AED", "CNY"]).nullable().optional(),
     exchangeRate: exchangeRateSchema.nullable().optional(),
+    // MOQ facultatif : utilisé uniquement pour les produits 1688.
+    minOrderQuantity: z.number().int().min(1).max(999999).nullable().optional(),
   })
   .strict()
   .superRefine((ticket, ctx) => {

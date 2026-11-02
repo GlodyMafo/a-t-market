@@ -16,6 +16,7 @@ export interface ProductUrlResolution {
 export interface UrlHopResponse {
     statusCode: number;
     headers: IncomingHttpHeaders;
+    body?: string;
 }
 
 export interface UrlResolverTransport {
@@ -74,7 +75,10 @@ function detectMarketplace(hostname: string): ProductMarketplace | null {
     return null;
 }
 
-function isShortLink(hostname: string, marketplace: ProductMarketplace): boolean {
+function isShortLink(
+    hostname: string,
+    marketplace: ProductMarketplace
+): boolean {
     const host = normalizeHostname(hostname);
 
     if (marketplace === "SHEIN") {
@@ -86,6 +90,47 @@ function isShortLink(hostname: string, marketplace: ProductMarketplace): boolean
     }
 
     return false;
+}
+
+/**
+ * Extrait une URL produit canonique depuis le contenu texte
+ * retourné par les liens courts de 1688.
+ *
+ * Exemple :
+ * wireless1688://ma.m.1688.com/offer?id=1067171966134.html
+ *
+ * Résultat :
+ * https://detail.1688.com/offer/1067171966134.html
+ */
+function extract1688CanonicalUrl(body: string): string | null {
+    const match = body.match(
+        /(?:[?&]id=|[?&]offerId=)(\d{8,20})(?:\.html)?/i
+    );
+
+    if (!match) {
+        return null;
+    }
+
+    const productId = match[1];
+
+    return `https://detail.1688.com/offer/${productId}.html`;
+}
+
+/**
+ * Extrait le goods_id depuis le deeplink HTML des liens courts SHEIN.
+ */
+function extractSheinCanonicalUrl(body: string): string | null {
+    const match = body.match(
+        /goods_id%22%3A%22(\d{5,20})%22/i
+    );
+
+    if (!match) {
+        return null;
+    }
+
+    const goodsId = match[1];
+
+    return `https://www.shein.com/product-p-${goodsId}.html`;
 }
 
 /**
@@ -193,9 +238,7 @@ function isInCidr(
 }
 
 /**
- * Politique conservatrice :
- * seules les IPv4 publiques sont autorisées.
- * Les plages spéciales et réservées sont bloquées.
+ * Seules les IPv4 publiques sont autorisées.
  */
 function isPublicIpv4(address: string): boolean {
     const numeric = ipv4ToNumber(address);
@@ -226,8 +269,7 @@ function isPublicIpv4(address: string): boolean {
 }
 
 /**
- * Résout uniquement des IPv4 et vérifie toutes les réponses.
- * La connexion utilisera ensuite une adresse vérifiée et épinglée.
+ * Résout les IPv4 publiques et épingle l'adresse utilisée.
  */
 async function resolvePublicIpv4(hostname: string): Promise<string> {
     if (isIP(hostname) !== 0) {
@@ -270,13 +312,13 @@ const defaultTransport: UrlResolverTransport = {
             let settled = false;
             let receivedBytes = 0;
 
+            const responseChunks: Buffer[] = [];
+
             const fail = (error: Error) => {
                 if (settled) return;
                 settled = true;
                 reject(error);
             };
-
-
 
             const req = httpsRequest(
                 {
@@ -286,12 +328,24 @@ const defaultTransport: UrlResolverTransport = {
                     path: `${url.pathname}${url.search}`,
                     method: "GET",
                     servername: url.hostname,
-                    lookup: (_hostname, _options, callback) => {
+
+                    lookup: (_hostname, options, callback) => {
+                        if (options.all) {
+                            callback(null, [
+                                {
+                                    address: pinnedIp,
+                                    family: 4,
+                                },
+                            ]);
+                            return;
+                        }
+
                         callback(null, pinnedIp, 4);
                     },
+
                     headers: {
                         "User-Agent": "A&T-Market-LinkResolver/1.0",
-                        Accept: "text/html,application/xhtml+xml",
+                        Accept: "text/html,application/xhtml+xml,text/plain",
                     },
                 },
                 (res: IncomingMessage) => {
@@ -304,7 +358,10 @@ const defaultTransport: UrlResolverTransport = {
                                     "Réponse trop volumineuse pendant la résolution."
                                 )
                             );
+                            return;
                         }
+
+                        responseChunks.push(chunk);
                     });
 
                     res.on("end", () => {
@@ -314,6 +371,7 @@ const defaultTransport: UrlResolverTransport = {
                         resolve({
                             statusCode: res.statusCode ?? 0,
                             headers: res.headers,
+                            body: Buffer.concat(responseChunks).toString("utf8"),
                         });
                     });
 
@@ -373,7 +431,62 @@ export class ProductUrlResolver {
                 this.maxResponseBytes
             );
 
+            console.log("[URL Resolver] Réponse :", {
+                url: current.toString(),
+                statusCode: response.statusCode,
+                location: response.headers.location,
+                contentType: response.headers["content-type"],
+                bodyMatches: (response.body ?? "")
+                    .match(/.{0,120}(?:467348333|goods_id|cat-\d+|-p-\d+|productUrl|product_url|canonical|og:url).{0,250}/gi)
+                    ?.slice(0, 30),
+            });
+
             if (response.statusCode >= 200 && response.statusCode < 300) {
+
+                if (
+                    marketplace === "SHEIN" &&
+                    normalizeHostname(current.hostname) === "onelink.shein.com"
+                ) {
+                    const canonicalUrl = extractSheinCanonicalUrl(
+                        response.body ?? ""
+                    );
+
+                    if (!canonicalUrl) {
+                        throw new ProductUrlResolverError(
+                            "Impossible d'extraire l'identifiant du produit depuis le lien court SHEIN."
+                        );
+                    }
+
+                    return {
+                        marketplace,
+                        originalUrl,
+                        canonicalUrl,
+                        redirectCount,
+                    };
+                }
+
+                if (
+                    marketplace === "1688" &&
+                    normalizeHostname(current.hostname) === "qr.1688.com"
+                ) {
+                    const canonicalUrl = extract1688CanonicalUrl(
+                        response.body ?? ""
+                    );
+
+                    if (!canonicalUrl) {
+                        throw new ProductUrlResolverError(
+                            "Impossible d'extraire l'identifiant du produit depuis le lien court 1688."
+                        );
+                    }
+
+                    return {
+                        marketplace,
+                        originalUrl,
+                        canonicalUrl,
+                        redirectCount,
+                    };
+                }
+
                 return {
                     marketplace,
                     originalUrl,

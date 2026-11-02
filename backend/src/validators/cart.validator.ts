@@ -15,4 +15,7 @@ export const addToCartSchema = z.object({
 
 export const updateCartItemSchema = z.object({ quantity });
 
-export const addQuoteToCartSchema = z.object({ quoteId: id });
+export const addQuoteToCartSchema = z.object({
+  quoteId: id,
+  quantity: quantity.default(1),
+});

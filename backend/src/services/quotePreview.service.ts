@@ -276,6 +276,12 @@ export async function previewInternationalQuote(
       sourceProductPrice,
       sourceCurrency: ticketSourceCurrency,
       exchangeRate,
+      minOrderQuantity:
+        product.source === "1688" &&
+          Number.isInteger(product.minOrderQuantity) &&
+          Number(product.minOrderQuantity) > 0
+          ? product.minOrderQuantity
+          : null,
     },
     deps.now
   );

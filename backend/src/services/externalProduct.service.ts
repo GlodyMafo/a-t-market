@@ -22,12 +22,12 @@ export class ExternalProductService {
   private providers: ExternalProductProvider[];
 
   constructor() {
-  this.providers = [
-    new SheinProvider(),
-    new NoonProvider(),
-    new Product1688Provider(),
-  ];
-}
+    this.providers = [
+      new SheinProvider(),
+      new NoonProvider(),
+      new Product1688Provider(),
+    ];
+  }
 
   /**
    * Vérifie si un provider existe pour une marketplace.
@@ -57,6 +57,14 @@ export class ExternalProductService {
     if (inspected.isShortLink) {
       const resolved = await resolveProductUrl(url);
       canonicalUrl = resolved.canonicalUrl;
+
+      console.log(
+        `[External Product] URL originale : ${url}`
+      );
+
+      console.log(
+        `[External Product] URL résolue : ${canonicalUrl}`
+      );
     }
 
     return this.fetchCanonicalProduct(canonicalUrl);

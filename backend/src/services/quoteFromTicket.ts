@@ -87,6 +87,7 @@ export async function createQuoteFromTicket(
       sourceProductPrice: ticket.sourceProductPrice ?? null,
       sourceCurrency: ticket.sourceCurrency ?? null,
       exchangeRate: ticket.exchangeRate ?? null,
+      minOrderQuantity: ticket.minOrderQuantity ?? null,
       commissionRate: ticket.commissionRate,
       chinaPricePerKg: ticket.chinaPricePerKg,
       fixedFee: ticket.fixedFee,
