@@ -16,7 +16,8 @@ export interface NewNotification {
   title: string;
   message: string;
   data?: Prisma.InputJsonValue;
-}
+  emailWanted ?: boolean;
+ }
 
 const publicFields = {
   id: true,
@@ -39,6 +40,7 @@ export async function recordNotification(db: Db, n: NewNotification) {
       title: n.title,
       message: n.message,
       data: n.data,
+      emailStatus: n.emailWanted ? "PENDING" : "NONE",
     },
     select: { ...publicFields, userId: true },
   });
@@ -57,6 +59,20 @@ export function publishNotification(record: RecordedNotification) {
 export const orderRef = (orderId: string) => `#${orderId.slice(-6).toUpperCase()}`;
 
 export const formatUsd = (value: unknown) => `${Number(value).toFixed(2)} $`;
+
+/** Récupère une notification appartenant exclusivement à l'utilisateur connecté. */
+export async function getNotification(userId: string, id: string) {
+  const notification = await prisma.notification.findFirst({
+    where: { id, userId },
+    select: publicFields,
+  });
+
+  if (!notification) {
+    throw new NotFoundError("Notification introuvable");
+  }
+
+  return notification;
+}
 
 // ---------- Journal côté client ----------
 

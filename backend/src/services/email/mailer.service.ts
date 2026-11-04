@@ -11,11 +11,20 @@ import { env } from "../../config/env";
  * - Le transport est remplaçable (`setMailTransport`) : les tests n'envoient jamais de vrai e-mail.
  */
 
+/** Image intégrée à l'e-mail (référencée dans le HTML par `cid:`). */
+export interface EmailInlineImage {
+  cid: string;
+  filename: string;
+  contentType: string;
+  content: Buffer;
+}
+
 export interface OutgoingEmail {
   to: string;
   subject: string;
   text: string;
   html: string;
+  inlineImages?: EmailInlineImage[];
 }
 
 export interface MailMessage {
@@ -24,6 +33,13 @@ export interface MailMessage {
   subject: string;
   text: string;
   html: string;
+  attachments?: Array<{
+    filename: string;
+    content: Buffer;
+    cid: string;
+    contentType: string;
+    contentDisposition: "inline";
+  }>;
 }
 
 export interface MailTransport {
@@ -172,12 +188,19 @@ export async function sendEmail(
     }
 
     const info = await withTimeout(
-      transport.send({
+          transport.send({
         from: expediteur(),
         to: email.to,
         subject: email.subject.replace(/[\r\n]+/g, " "),
         text: email.text,
         html: email.html,
+        attachments: email.inlineImages?.map((image) => ({
+          filename: image.filename,
+          content: image.content,
+          cid: image.cid,
+          contentType: image.contentType,
+          contentDisposition: "inline" as const,
+        })),
       }),
       options.timeoutMs ?? SEND_TIMEOUT_MS
     );

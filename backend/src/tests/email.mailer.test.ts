@@ -188,3 +188,25 @@ test("maskEmail : masque l'adresse pour les journaux", () => {
   assert.equal(maskEmail("jean.dupont@gmail.com"), "j***@gmail.com");
   assert.equal(maskEmail("invalide"), "***");
 });
+
+test("Images intégrées : transmises au transport comme pièces jointes « inline » avec leur CID", async () => {
+  const { envoyes, transport } = transportFactice();
+  setMailTransport(transport);
+
+  const r = await sendEmail({
+    ...MAIL,
+    inlineImages: [
+      { cid: "at-logo", filename: "logo.png", contentType: "image/png", content: Buffer.from([1, 2, 3]) },
+    ],
+  });
+  assert.equal(r.ok, true);
+
+  assert.equal(envoyes[0].attachments?.length, 1);
+  assert.equal(envoyes[0].attachments?.[0].cid, "at-logo");
+  assert.equal(envoyes[0].attachments?.[0].contentDisposition, "inline");
+  assert.deepEqual([...(envoyes[0].attachments?.[0].content ?? [])], [1, 2, 3]);
+
+  // Sans image : aucune pièce jointe
+  await sendEmail(MAIL);
+  assert.equal(envoyes[1].attachments, undefined);
+});

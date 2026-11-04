@@ -6,6 +6,7 @@ import {
   listNotifications,
   markAllNotificationsRead,
   markNotificationRead,
+  getNotification,
 } from "../services/notification.service";
 
 export async function listNotificationsController(req: AuthRequest, res: Response) {
@@ -45,6 +46,19 @@ export async function markAllNotificationsReadController(req: AuthRequest, res: 
     return res.json({
       success: true,
       data: await markAllNotificationsRead(req.user!.userId),
+    });
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
+export async function getNotificationController(req: AuthRequest, res: Response) {
+  try {
+    const { id } = req.params as Record<string, string>;
+
+    return res.json({
+      success: true,
+      data: await getNotification(req.user!.userId, id),
     });
   } catch (error) {
     return sendError(res, error);

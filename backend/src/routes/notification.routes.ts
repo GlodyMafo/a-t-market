@@ -3,6 +3,7 @@ import {
   listNotificationsController,
   markAllNotificationsReadController,
   markNotificationReadController,
+  getNotificationController,
 } from "../controllers/notification.controller";
 import { authMiddleware } from "../middlewares/auth.middleware";
 import { validate } from "../middlewares/validate";
@@ -13,6 +14,7 @@ const router = Router();
 router.use(authMiddleware);
 
 router.get("/", listNotificationsController);
+router.get("/:id", validate({ params: idParams }), getNotificationController);
 router.patch("/read-all", markAllNotificationsReadController);
 router.patch("/:id/read", validate({ params: idParams }), markNotificationReadController);
 

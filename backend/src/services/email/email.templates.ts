@@ -1,10 +1,12 @@
 /**
- * Modèles d'e-mails AT-MARKET (français, HTML + texte brut).
+ * Modèles d'e-mails A&T Market (français, HTML + texte brut).
  *
  * Fichier « pur » : aucune base de données, aucune configuration.
  * Chaque événement n'accepte que les champs prévus (liste blanche) :
  * rien d'autre ne peut se retrouver dans un e-mail.
  */
+
+import { LOGO_CID, logoInlineImage } from "./email.logo";
 
 export const EMAIL_TRACKING_STATUSES = [
   "PURCHASED",
@@ -43,14 +45,47 @@ export interface EmailContext {
   frontendUrl?: string | null;
 }
 
+export interface InlineImage {
+  cid: string;
+  filename: string;
+  contentType: string;
+  content: Buffer;
+}
+
 export interface RenderedEmail {
   subject: string;
   text: string;
   html: string;
+  /** Images intégrées (logo) à joindre à l'e-mail : le HTML y fait référence par `cid:`. */
+  inlineImages: InlineImage[];
 }
 
-const BRAND = "AT-MARKET";
+const BRAND = "A&T Market";
 const TIME_ZONE = "Africa/Lubumbashi";
+
+// ---------- Identité visuelle (couleurs du logo) ----------
+
+const COLOR = {
+  brand: "#3D64AF", // bleu du logo
+  brandDark: "#2C4C8A",
+  ink: "#1F2A44",
+  muted: "#6B7280",
+  page: "#EEF2F9",
+  panel: "#F5F8FD",
+  border: "#DCE4F2",
+  white: "#FFFFFF",
+};
+
+type Tone = "info" | "success" | "warning" | "danger";
+
+const TONES: Record<Tone, { bg: string; fg: string }> = {
+  info: { bg: "#E4ECF9", fg: "#2C4C8A" },
+  success: { bg: "#DFF3E7", fg: "#1E6B3C" },
+  warning: { bg: "#FDF0D5", fg: "#855400" },
+  danger: { bg: "#FCE4E4", fg: "#A12626" },
+};
+
+const FONT = "Arial,Helvetica,sans-serif";
 
 // ---------- Utilitaires ----------
 
@@ -95,48 +130,55 @@ interface Section {
   subject: string;
   title: string;
   status: string;
+  tone: Tone;
   paragraphs: string[];
 }
 
 const TRACKING_CONTENT: Record<
   EmailTrackingStatus,
-  { subject: string; title: string; status: string; body: string }
+  { subject: string; title: string; status: string; body: string; tone: Tone }
 > = {
   PURCHASED: {
     subject: "produit acheté",
     title: "Votre produit a été acheté",
     status: "Produit acheté",
     body: "Nous avons acheté votre produit auprès du vendeur.",
+    tone: "info",
   },
   PREPARING: {
     subject: "en préparation",
     title: "Votre commande est en préparation",
     status: "En préparation",
     body: "Notre équipe prépare actuellement votre commande.",
+    tone: "info",
   },
   IN_TRANSIT: {
     subject: "en transit",
     title: "Votre commande est en transit",
     status: "En transit",
     body: "Votre commande est en route vers la RDC.",
+    tone: "info",
   },
   ARRIVED_DRC: {
     subject: "arrivée en RDC",
     title: "Votre commande est arrivée en RDC",
     status: "Arrivée en RDC",
     body: "Bonne nouvelle : votre commande est arrivée en RDC.",
+    tone: "info",
   },
   OUT_FOR_DELIVERY: {
     subject: "en cours de livraison",
     title: "Votre commande est en cours de livraison",
     status: "En cours de livraison",
     body: "Votre commande est en cours de livraison.",
+    tone: "info",
   },
   DELIVERED: {
     subject: "livrée",
     title: "Votre commande a été livrée",
     status: "Livrée",
     body: "Votre commande a été livrée. Merci de votre confiance !",
+    tone: "success",
   },
 };
 
@@ -156,7 +198,8 @@ function describe(event: EmailEvent, ref: string): Section {
       return {
         subject: `commande ${ref} enregistrée`,
         title: "Votre commande est enregistrée",
-        status: "Commande enregistrée, en attente de paiement",
+        status: "En attente de paiement",
+        tone: "info",
         paragraphs,
       };
     }
@@ -167,6 +210,7 @@ function describe(event: EmailEvent, ref: string): Section {
           subject: `paiement reçu, commande ${ref} validée`,
           title: "Paiement confirmé",
           status: "Paiement confirmé, commande validée",
+          tone: "success",
           paragraphs: [
             `Nous avons bien reçu votre paiement de ${money(event.paidAmount)}.`,
             `Votre commande ${ref} est validée.`,
@@ -177,6 +221,7 @@ function describe(event: EmailEvent, ref: string): Section {
         subject: `paiement reçu pour la commande ${ref}`,
         title: "Paiement partiel confirmé",
         status: "Paiement partiel confirmé",
+        tone: "warning",
         paragraphs: [
           `Nous avons bien reçu votre paiement de ${money(event.paidAmount)} pour la commande ${ref}.`,
           `Il reste ${money(event.remainingAmount)} à payer pour valider votre commande.`,
@@ -188,6 +233,7 @@ function describe(event: EmailEvent, ref: string): Section {
         subject: `paiement non abouti pour la commande ${ref}`,
         title: "Votre paiement n'a pas abouti",
         status: "Paiement échoué",
+        tone: "danger",
         paragraphs: [
           `Votre paiement de ${money(event.amount)} pour la commande ${ref} n'a pas abouti.`,
           "Vous pouvez réessayer depuis votre compte.",
@@ -203,6 +249,7 @@ function describe(event: EmailEvent, ref: string): Section {
         subject: `commande ${ref} : ${c.subject}`,
         title: c.title,
         status: c.status,
+        tone: c.tone,
         paragraphs,
       };
     }
@@ -212,6 +259,7 @@ function describe(event: EmailEvent, ref: string): Section {
         subject: `commande ${ref} annulée`,
         title: "Votre commande a été annulée",
         status: "Commande annulée",
+        tone: "danger",
         paragraphs: [
           `Votre commande ${ref} n'a pas été payée dans le délai imparti : elle a été annulée automatiquement.`,
           "Si vous souhaitez toujours ces articles, vous pouvez passer une nouvelle commande depuis votre compte.",
@@ -232,6 +280,7 @@ export function renderEmail(event: EmailEvent, ctx: EmailContext): RenderedEmail
   const date = formatEmailDate(ctx.occurredAt);
   const site = safeSiteUrl(ctx.frontendUrl);
   const subject = `${BRAND} : ${section.subject}`.replace(/[\r\n]+/g, " ");
+  const tone = TONES[section.tone];
 
   const details: Array<[string, string]> = [
     ["Commande", ctx.orderRef],
@@ -261,50 +310,75 @@ export function renderEmail(event: EmailEvent, ctx: EmailContext): RenderedEmail
     footer,
   ].join("\n");
 
-  // ----- HTML (styles en ligne, aucune ressource externe) -----
+  // ----- HTML (tableaux + styles en ligne : compatible Gmail, Outlook, mobiles) -----
   const paragraphsHtml = section.paragraphs
-    .map((p) => `<p style="margin:0 0 14px;line-height:1.5;">${escapeHtml(p)}</p>`)
+    .map(
+      (p) =>
+        `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:${COLOR.ink};">${escapeHtml(p)}</p>`
+    )
     .join("\n");
 
   const detailsHtml = details
     .map(
-      ([label, value]) =>
-        `<tr><td style="padding:6px 12px 6px 0;color:#6b7280;white-space:nowrap;">${escapeHtml(label)}</td>` +
-        `<td style="padding:6px 0;font-weight:bold;">${escapeHtml(value)}</td></tr>`
+      ([label, value], i) =>
+        `<tr>` +
+        `<td style="padding:10px 16px;${i > 0 ? `border-top:1px solid ${COLOR.border};` : ""}font-size:13px;color:${COLOR.muted};white-space:nowrap;">${escapeHtml(label)}</td>` +
+        `<td align="right" style="padding:10px 16px;${i > 0 ? `border-top:1px solid ${COLOR.border};` : ""}font-size:14px;font-weight:bold;color:${COLOR.ink};">${escapeHtml(value)}</td>` +
+        `</tr>`
     )
     .join("\n");
 
   const accountHtml = site
-    ? `<p style="margin:20px 0 0;"><a href="${escapeHtml(site)}" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:6px;">Consulter mon compte</a></p>`
-    : `<p style="margin:20px 0 0;line-height:1.5;">${escapeHtml(accountLine)}</p>`;
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:26px 0 0;">
+<tr><td bgcolor="${COLOR.brand}" style="background:${COLOR.brand};border-radius:8px;">
+<a href="${escapeHtml(site)}" style="display:inline-block;padding:13px 26px;font-family:${FONT};font-size:15px;font-weight:bold;color:${COLOR.white};text-decoration:none;">Consulter mon compte</a>
+</td></tr>
+</table>`
+    : `<p style="margin:24px 0 0;font-size:14px;line-height:1.6;color:${COLOR.muted};">${escapeHtml(accountLine)}</p>`;
+
+  const preheader = escapeHtml(section.paragraphs[0] ?? section.title);
 
   const html = `<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
 <title>${escapeHtml(subject)}</title>
 </head>
-<body style="margin:0;padding:0;background:#f4f5f7;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:24px 0;">
+<body style="margin:0;padding:0;background:${COLOR.page};font-family:${FONT};color:${COLOR.ink};">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:${COLOR.page};">${preheader}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="${COLOR.page}" style="background:${COLOR.page};padding:28px 12px;">
 <tr><td align="center">
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:8px;overflow:hidden;">
-<tr><td style="background:#111827;color:#ffffff;padding:18px 28px;font-size:20px;font-weight:bold;letter-spacing:1px;">${BRAND}</td></tr>
-<tr><td style="padding:28px;">
-<p style="margin:0 0 14px;">Bonjour,</p>
-<h1 style="margin:0 0 18px;font-size:20px;line-height:1.3;">${escapeHtml(section.title)}</h1>
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;background:${COLOR.white};border-radius:12px;overflow:hidden;border:1px solid ${COLOR.border};">
+<tr><td bgcolor="${COLOR.brand}" style="background:${COLOR.brand};height:6px;font-size:0;line-height:0;">&nbsp;</td></tr>
+<tr><td style="padding:22px 32px 18px;">
+<table role="presentation" cellpadding="0" cellspacing="0"><tr>
+<td style="padding-right:12px;vertical-align:middle;"><img src="cid:${LOGO_CID}" width="48" height="48" alt="${escapeHtml(BRAND)}" style="display:block;border:0;border-radius:10px;"></td>
+<td style="vertical-align:middle;font-family:${FONT};font-size:22px;font-weight:bold;color:${COLOR.brand};letter-spacing:0.3px;">${escapeHtml(BRAND)}</td>
+</tr></table>
+</td></tr>
+<tr><td style="padding:0 32px 8px;">
+<p style="margin:0 0 18px;font-size:15px;color:${COLOR.ink};">Bonjour,</p>
+<span style="display:inline-block;background:${tone.bg};color:${tone.fg};font-size:12px;font-weight:bold;letter-spacing:0.4px;text-transform:uppercase;padding:6px 12px;border-radius:999px;">${escapeHtml(section.status)}</span>
+<h1 style="margin:16px 0 16px;font-size:24px;line-height:1.3;color:${COLOR.ink};">${escapeHtml(section.title)}</h1>
 ${paragraphsHtml}
-<table role="presentation" cellpadding="0" cellspacing="0" style="margin:18px 0 0;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;width:100%;padding:8px 0;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="${COLOR.panel}" style="margin:20px 0 0;background:${COLOR.panel};border:1px solid ${COLOR.border};border-radius:10px;">
 ${detailsHtml}
 </table>
 ${accountHtml}
 </td></tr>
-<tr><td style="padding:16px 28px;background:#f9fafb;color:#6b7280;font-size:12px;line-height:1.5;">${escapeHtml(footer)}</td></tr>
+<tr><td style="padding:28px 32px 26px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid ${COLOR.border};">
+<tr><td style="padding-top:16px;font-size:12px;line-height:1.6;color:${COLOR.muted};"><strong style="color:${COLOR.brand};">${escapeHtml(BRAND)}</strong><br>${escapeHtml(footer)}</td></tr>
+</table>
+</td></tr>
 </table>
 </td></tr>
 </table>
 </body>
 </html>`;
 
-  return { subject, text, html };
+  return { subject, text, html, inlineImages: [logoInlineImage()] };
 }

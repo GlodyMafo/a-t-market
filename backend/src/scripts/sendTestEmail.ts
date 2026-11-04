@@ -2,6 +2,7 @@ import "dotenv/config";
 
 import { env } from "../config/env";
 import { maskEmail, sendEmail } from "../services/email/mailer.service";
+import { renderEmail } from "../services/email/email.templates";
 
 async function main() {
   if (!env.SMTP) {
@@ -9,21 +10,18 @@ async function main() {
     process.exit(1);
   }
 
-  // Par défaut : ta propre adresse Gmail de test. Un autre destinataire peut être passé en argument.
   const to = process.argv[2] ?? env.SMTP.user;
+  const mail = renderEmail(
+    { kind: "PAYMENT_CONFIRMED", paidAmount: "34.00", remainingAmount: "0.00", orderFullyPaid: true },
+    { orderRef: "#ABC123", occurredAt: new Date(), frontendUrl: env.FRONTEND_URL }
+  );
 
-  const resultat = await sendEmail({
-    to,
-    subject: "Test AT-MARKET : configuration e-mail",
-    text: "Ceci est un e-mail de test envoyé par le backend AT-MARKET.\nSi vous le lisez, la configuration Gmail SMTP fonctionne.",
-    html: "<p>Ceci est un e-mail de test envoyé par le backend <strong>AT-MARKET</strong>.</p><p>Si vous le lisez, la configuration Gmail SMTP fonctionne.</p>",
-  });
+  const resultat = await sendEmail({ to, ...mail });
 
   if (resultat.ok) {
     console.log(`OK : e-mail de test envoyé à ${maskEmail(to)}.`);
     process.exit(0);
   }
-
   console.error(`ÉCHEC : ${resultat.error}`);
   process.exit(1);
 }

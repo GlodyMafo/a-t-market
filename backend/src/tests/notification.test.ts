@@ -15,6 +15,7 @@ import app from "../app";
 import { setRealtimeEmitter } from "../realtime/emitter";
 import { settlePaymentByDepositId } from "../services/payment.settlement.service";
 import { postTrackingEvent } from "../services/orderTracking.service";
+import { recordNotification } from "../services/notification.service";
 
 type Emis = { userId: string; event: string; payload: any };
 let emis: Emis[] = [];
@@ -285,3 +286,266 @@ test("Journal : tout marquer comme lu ne touche que les siennes", async () => {
 
   assert.equal((await http("PATCH", "/api/notifications/read-all", token(moi.id))).json.data.updated, 0);
 });
+
+// ====================== Notification individuelle ======================
+
+test("GET notification : le propriétaire peut consulter sa notification", async () => {
+  const moi = await creerUtilisateur();
+
+  await creerNotes(moi.id, 1);
+
+  const [notification] = await journal(moi.id);
+
+  const response = await http(
+    "GET",
+    `/api/notifications/${notification.id}`,
+    token(moi.id)
+  );
+
+  assert.equal(response.status, 200);
+  assert.equal(response.json.success, true);
+
+  assert.equal(response.json.data.id, notification.id);
+  assert.equal(response.json.data.title, notification.title);
+  assert.equal(response.json.data.message, notification.message);
+
+  // Ne jamais exposer l'identifiant interne du propriétaire.
+  assert.equal("userId" in response.json.data, false);
+
+  // Ne jamais exposer les informations techniques d'envoi d'e-mail.
+  assert.equal("emailStatus" in response.json.data, false);
+  assert.equal("emailAttempts" in response.json.data, false);
+  assert.equal("emailError" in response.json.data, false);
+});
+
+test("GET notification : un utilisateur ne peut pas consulter celle d'un autre", async () => {
+  const moi = await creerUtilisateur();
+  const autre = await creerUtilisateur();
+
+  await creerNotes(autre.id, 1);
+
+  const [notificationAutre] = await journal(autre.id);
+
+  const response = await http(
+    "GET",
+    `/api/notifications/${notificationAutre.id}`,
+    token(moi.id)
+  );
+
+  assert.equal(response.status, 404);
+  assert.equal(response.json.success, false);
+});
+
+test("GET notification : une notification inexistante retourne 404", async () => {
+  const moi = await creerUtilisateur();
+
+  const response = await http(
+    "GET",
+    "/api/notifications/notification-inexistante",
+    token(moi.id)
+  );
+
+  assert.equal(response.status, 404);
+  assert.equal(response.json.success, false);
+});
+
+test("GET notification : une requête sans authentification retourne 401", async () => {
+  const moi = await creerUtilisateur();
+
+  await creerNotes(moi.id, 1);
+
+  const [notification] = await journal(moi.id);
+
+  const response = await http(
+    "GET",
+    `/api/notifications/${notification.id}`
+  );
+
+  assert.equal(response.status, 401);
+});
+
+test("GET notification : un identifiant invalide retourne 400", async () => {
+  const moi = await creerUtilisateur();
+
+  const invalidId = "x".repeat(65);
+
+  const response = await http(
+    "GET",
+    `/api/notifications/${invalidId}`,
+    token(moi.id)
+  );
+
+  assert.equal(response.status, 400);
+});
+
+// ====================== Préparation des notifications e-mail ======================
+
+test("recordNotification : emailWanted true crée une notification PENDING", async () => {
+  const user = await creerUtilisateur();
+
+  const notification = await recordNotification(prisma, {
+    userId: user.id,
+    type: "ORDER_STATUS_CHANGED",
+    title: "Commande mise à jour",
+    message: "Le statut de votre commande a changé.",
+    emailWanted: true,
+  });
+
+  const saved = await prisma.notification.findUniqueOrThrow({
+    where: { id: notification.id },
+  });
+
+  assert.equal(saved.emailStatus, "PENDING");
+  assert.equal(saved.emailAttempts, 0);
+  assert.equal(saved.emailSentAt, null);
+  assert.equal(saved.emailError, null);
+
+  // L'information technique ne doit pas être exposée dans l'événement public.
+  assert.equal("emailStatus" in notification, false);
+  assert.equal("emailAttempts" in notification, false);
+});
+
+test("recordNotification : emailWanted absent conserve le statut NONE", async () => {
+  const user = await creerUtilisateur();
+
+  const notification = await recordNotification(prisma, {
+    userId: user.id,
+    type: "ORDER_STATUS_CHANGED",
+    title: "Commande mise à jour",
+    message: "Le statut de votre commande a changé.",
+  });
+
+  const saved = await prisma.notification.findUniqueOrThrow({
+    where: { id: notification.id },
+  });
+
+  assert.equal(saved.emailStatus, "NONE");
+  assert.equal(saved.emailAttempts, 0);
+  assert.equal(saved.emailSentAt, null);
+  assert.equal(saved.emailError, null);
+});
+
+
+// ====================== Détail d'une notification ======================
+
+test("Détail : un utilisateur connecté peut consulter sa notification", async () => {
+  const user = await creerUtilisateur();
+  await creerNotes(user.id, 1);
+
+  const [notification] = await journal(user.id);
+
+  const r = await http(
+    "GET",
+    `/api/notifications/${notification.id}`,
+    token(user.id)
+  );
+
+  assert.equal(r.status, 200);
+  assert.equal(r.json.success, true);
+  assert.equal(r.json.data.id, notification.id);
+  assert.equal(r.json.data.title, notification.title);
+  assert.equal(r.json.data.message, notification.message);
+  assert.equal("userId" in r.json.data, false);
+
+  // La consultation ne marque pas automatiquement la notification comme lue.
+  const persisted = await prisma.notification.findUniqueOrThrow({
+    where: { id: notification.id },
+  });
+  assert.equal(persisted.readAt, null);
+});
+
+test("Détail : un utilisateur ne peut pas consulter la notification d'un autre", async () => {
+  const moi = await creerUtilisateur();
+  const autre = await creerUtilisateur();
+
+  await creerNotes(autre.id, 1);
+  const [notification] = await journal(autre.id);
+
+  const r = await http(
+    "GET",
+    `/api/notifications/${notification.id}`,
+    token(moi.id)
+  );
+
+  assert.equal(r.status, 404);
+  assert.equal(r.json.success, false);
+});
+
+test("Détail : une notification inexistante renvoie 404", async () => {
+  const user = await creerUtilisateur();
+
+  const r = await http(
+    "GET",
+    "/api/notifications/notification-inconnue",
+    token(user.id)
+  );
+
+  assert.equal(r.status, 404);
+});
+
+test("Détail : l'authentification et la validation de l'identifiant sont obligatoires", async () => {
+  const user = await creerUtilisateur();
+  await creerNotes(user.id, 1);
+
+  const [notification] = await journal(user.id);
+
+  assert.equal(
+    (await http("GET", `/api/notifications/${notification.id}`)).status,
+    401
+  );
+
+  assert.equal(
+    (await http(
+      "GET",
+      `/api/notifications/${"x".repeat(65)}`,
+      token(user.id)
+    )).status,
+    400
+  );
+});
+
+// ====================== Préparation de l'e-mail ======================
+
+test("recordNotification : emailWanted true prépare une livraison PENDING", async () => {
+  const user = await creerUtilisateur();
+
+  const notification = await recordNotification(prisma, {
+    userId: user.id,
+    type: "ORDER_STATUS_CHANGED",
+    title: "Commande mise à jour",
+    message: "Votre commande a changé de statut.",
+    emailWanted: true,
+  });
+
+  const persisted = await prisma.notification.findUniqueOrThrow({
+    where: { id: notification.id },
+  });
+
+  assert.equal(persisted.emailStatus, "PENDING");
+  assert.equal(persisted.emailAttempts, 0);
+  assert.equal(persisted.emailLastAttemptAt, null);
+  assert.equal(persisted.emailNextAttemptAt, null);
+  assert.equal(persisted.emailSentAt, null);
+  assert.equal(persisted.emailError, null);
+});
+
+test("recordNotification : sans emailWanted, aucune livraison e-mail n'est demandée", async () => {
+  const user = await creerUtilisateur();
+
+  const notification = await recordNotification(prisma, {
+    userId: user.id,
+    type: "ORDER_STATUS_CHANGED",
+    title: "Commande mise à jour",
+    message: "Votre commande a changé de statut.",
+  });
+
+  const persisted = await prisma.notification.findUniqueOrThrow({
+    where: { id: notification.id },
+  });
+
+  assert.equal(persisted.emailStatus, "NONE");
+  assert.equal(persisted.emailAttempts, 0);
+  assert.equal(persisted.emailSentAt, null);
+});
+
+

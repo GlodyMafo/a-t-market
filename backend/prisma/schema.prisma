@@ -97,6 +97,23 @@ enum VariantSource {
   EXTERNAL
 }
 
+enum NotificationType {
+  PAYMENT_CONFIRMED
+  PAYMENT_FAILED
+  ORDER_STATUS_CHANGED
+  ORDER_CREATED
+  ORDER_CANCELLED
+}
+
+// État de l'e-mail associé à une notification.
+// NONE = aucun e-mail prévu ; PENDING = à envoyer (ou à relancer) ; SENT = envoyé ; FAILED = abandonné après les tentatives.
+enum EmailStatus {
+  NONE
+  PENDING
+  SENT
+  FAILED
+}
+
 model User {
   id String @id @default(cuid())
 
@@ -558,12 +575,6 @@ model QuoteRevision {
   @@index([quoteId])
 }
 
-enum NotificationType {
-  PAYMENT_CONFIRMED
-  PAYMENT_FAILED
-  ORDER_STATUS_CHANGED
-}
-
 // Journal des notifications : une ligne par événement important pour le client.
 // Le temps réel (Socket.io) n'est qu'un moyen de livrer plus vite ce qui est déjà écrit ici.
 model Notification {
@@ -589,6 +600,25 @@ model Notification {
 
   createdAt DateTime @default(now())
 
+  // ---------- Suivi de l'e-mail (jamais exposé par l'API) ----------
+
+  emailStatus EmailStatus @default(NONE)
+
+  // Nombre de tentatives d'envoi déjà faites.
+  emailAttempts Int @default(0)
+
+  emailLastAttemptAt DateTime?
+
+  // Prochaine tentative autorisée (sert aussi de « réservation » pendant un envoi).
+  emailNextAttemptAt DateTime?
+
+  emailSentAt DateTime?
+
+  // Raison technique de l'échec, sans identifiants (voir mailer.service).
+  emailError String?
+
   @@index([userId, createdAt])
   @@index([userId, readAt])
+  @@index([emailStatus, emailNextAttemptAt])
 }
+
