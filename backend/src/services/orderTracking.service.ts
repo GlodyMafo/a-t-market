@@ -8,6 +8,7 @@ import {
   InvalidTransitionError,
   TRACKING_LABELS,
 } from "./orderFlow";
+import { isEmailTrackingStatus } from "./email/email.templates";
 
 function refusCommande(status: OrderStatus) {
   if (status === "DELIVERED") {
@@ -82,15 +83,22 @@ export async function postTrackingEvent(input: {
 
     // Notification du client, dans la même transaction : pas de changement de statut sans trace.
     const label = TRACKING_LABELS[status];
+    const emailWanted = isEmailTrackingStatus(status);
+
     const note = await recordNotification(tx, {
       userId: order.userId,
       type: "ORDER_STATUS_CHANGED",
       orderId,
       title: label,
       message: `Commande ${orderRef(orderId)} : ${label}${message ? ` — ${message}` : ""}`,
-      data: { status, label },
+      emailWanted,
+      data: {
+        status,
+        label,
+        ...(message ? { emailMessage: message } : {}),
+      },
     });
-
+    
     return { event, note };
   });
 

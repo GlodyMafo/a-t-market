@@ -15,6 +15,14 @@ import {
 import { detectProductMarketplace } from "./productUrl";
 import { computeQuote } from "./pricing.service";
 
+import {
+  formatUsd,
+  orderRef,
+  publishNotification,
+  recordNotification,
+} from "./notification.service";
+
+
 const Decimal = Prisma.Decimal;
 
 /**
@@ -77,7 +85,7 @@ export async function createOrderFromCart(userId: string) {
     throw new Error("Panier introuvable");
   }
 
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     // Verrouillage du panier pour éviter les commandes concurrentes.
     await tx.$queryRaw`
       SELECT id FROM "Cart" WHERE id = ${cartRef.id} FOR UPDATE
@@ -316,8 +324,27 @@ export async function createOrderFromCart(userId: string) {
       where: { cartId: cart.id },
     });
 
-    return createdOrder;
+    const notification = await recordNotification(tx, {
+      userId,
+      type: "ORDER_CREATED",
+      orderId: createdOrder.id,
+      title: "Commande créée",
+      message: `Votre commande ${orderRef(createdOrder.id)} a été créée. Montant total : ${formatUsd(createdOrder.totalAmount)}.`,
+      emailWanted: true,
+      data: {
+        totalAmount: createdOrder.totalAmount.toString(),
+      },
+    });
+
+    return {
+      createdOrder,
+      notification,
+    };
   });
+
+  publishNotification(result.notification);
+
+  return result.createdOrder;
 }
 
 // Get all orders by user

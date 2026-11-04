@@ -179,8 +179,12 @@ async function vieillirCommande(orderId: string, minutes: number) {
   });
 }
 
-test("Expiration : commande non payée de plus de 60 min -> CANCELLED et stock remis", async () => {
-  const { produit, order } = await commandeReservee({ stock: 5, quantity: 2 });
+test("Expiration : commande non payée de plus de 60 min -> CANCELLED, stock remis et e-mail en attente", async () => {
+  const { user, produit, order } = await commandeReservee({
+    stock: 5,
+    quantity: 2,
+  });
+
   assert.equal(await stockDe(produit.id), 3);
   await vieillirCommande(order.id, 61);
 
@@ -188,23 +192,57 @@ test("Expiration : commande non payée de plus de 60 min -> CANCELLED et stock r
 
   assert.equal(n, 1);
   assert.equal(await stockDe(produit.id), 5);
-  const o = await prisma.order.findUniqueOrThrow({ where: { id: order.id } });
+
+  const o = await prisma.order.findUniqueOrThrow({
+    where: { id: order.id },
+  });
   assert.equal(o.status, "CANCELLED");
+
   const m = await prisma.inventoryMovement.findFirstOrThrow({
     where: { reason: `ORDER_RELEASED:${order.id}` },
   });
   assert.equal(m.type, "IN");
+
+  const notifications = await prisma.notification.findMany({
+    where: {
+      userId: user.id,
+      orderId: order.id,
+      type: "ORDER_CANCELLED",
+    },
+  });
+
+  assert.equal(notifications.length, 1);
+  assert.equal(notifications[0].emailStatus, "PENDING");
+  assert.equal(notifications[0].emailAttempts, 0);
+  assert.deepEqual(notifications[0].data, {
+    reason: "RESERVATION_EXPIRED",
+  });
 });
 
-test("Expiration lancée plusieurs fois : le stock n'est remis qu'une seule fois", async () => {
-  const { produit, order } = await commandeReservee({ stock: 5, quantity: 2 });
+test("Expiration répétée : une seule annulation, une seule notification et une seule libération du stock", async () => {
+  const { user, produit, order } = await commandeReservee({
+    stock: 5,
+    quantity: 2,
+  });
+
   await vieillirCommande(order.id, 90);
 
-  await expireUnpaidOrders();
-  await expireUnpaidOrders();
-  await expireUnpaidOrders();
+  assert.equal(await expireUnpaidOrders(), 1);
+  assert.equal(await expireUnpaidOrders(), 0);
+  assert.equal(await expireUnpaidOrders(), 0);
 
   assert.equal(await stockDe(produit.id), 5);
+
+  const notifications = await prisma.notification.findMany({
+    where: {
+      userId: user.id,
+      orderId: order.id,
+      type: "ORDER_CANCELLED",
+    },
+  });
+
+  assert.equal(notifications.length, 1);
+  assert.equal(notifications[0].emailStatus, "PENDING");
 });
 
 test("Libération directe répétée : idempotente", async () => {
@@ -231,6 +269,15 @@ test("Paiement PENDING en cours : la commande n'est PAS expirée", async () => {
 
   assert.equal(await expireUnpaidOrders(), 0);
   assert.equal(await stockDe(produit.id), 3);
+  assert.equal(
+    await prisma.notification.count({
+      where: {
+        orderId: order.id,
+        type: "ORDER_CANCELLED",
+      },
+    }),
+    0
+  );
 });
 
 test("Seulement des paiements FAILED : la commande expire", async () => {
@@ -250,6 +297,15 @@ test("Commande payée : jamais expirée, stock conservé", async () => {
 
   assert.equal(await expireUnpaidOrders(), 0);
   assert.equal(await stockDe(produit.id), 3);
+  assert.equal(
+    await prisma.notification.count({
+      where: {
+        orderId: order.id,
+        type: "ORDER_CANCELLED",
+      },
+    }),
+    0
+  );
 });
 
 test("Commande PARTIALLY_PAID : jamais expirée", async () => {
@@ -259,6 +315,15 @@ test("Commande PARTIALLY_PAID : jamais expirée", async () => {
 
   assert.equal(await expireUnpaidOrders(), 0);
   assert.equal(await stockDe(produit.id), 3);
+  assert.equal(
+    await prisma.notification.count({
+      where: {
+        orderId: order.id,
+        type: "ORDER_CANCELLED",
+      },
+    }),
+    0
+  );
 });
 
 // =============== Panier ===============

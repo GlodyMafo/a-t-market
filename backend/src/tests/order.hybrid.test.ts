@@ -1,3 +1,4 @@
+
 import "./setup";
 
 import { test, before, after, beforeEach } from "node:test";
@@ -88,19 +89,40 @@ test("Commande mixte : montants exacts (produits 566, transport 7, total 573) et
 
   const order = await createOrderFromCart(user.id);
 
+  // Une notification e-mail est créée avec la commande.
+  const notifications = await prisma.notification.findMany({
+    where: {
+      userId: user.id,
+      orderId: order.id,
+      type: "ORDER_CREATED",
+    },
+  });
+
+  assert.equal(notifications.length, 1);
+  assert.equal(notifications[0].emailStatus, "PENDING");
+  assert.equal(notifications[0].emailAttempts, 0);
+  assert.deepEqual(notifications[0].data, {
+    totalAmount: "573",
+  });
+
+  // Vérification du contenu de la commande.
   assert.equal(order.status, "PENDING_PAYMENT");
   assert.equal(order.productsAmount.toString(), "566");
   assert.equal(order.shippingAmount.toString(), "7");
   assert.equal(order.totalAmount.toString(), "573");
   assert.equal(order.items.length, 2);
 
-  const articleLocal = order.items.find((i) => i.productId === produit.id)!;
+  const articleLocal = order.items.find(
+    (i) => i.productId === produit.id
+  )!;
 
   assert.equal(articleLocal.quoteId, null);
   assert.equal(articleLocal.price.toString(), "535");
   assert.equal(articleLocal.quoteSnapshot, null);
 
-  const articleDevis = order.items.find((i) => i.quoteId === quote.id)!;
+  const articleDevis = order.items.find(
+    (i) => i.quoteId === quote.id
+  )!;
 
   assert.equal(articleDevis.productId, null);
   assert.equal(articleDevis.quantity, 1);
@@ -362,7 +384,7 @@ test("Devis d'un AUTRE client glissé dans le panier : refusé (jamais commandé
   assert.equal(await prisma.order.count(), 0);
 });
 
-test("Stock insuffisant sur un produit local : toute la commande est annulée, le devis reste disponible", async () => {
+test("Stock insuffisant sur un produit local : toute la commande est annulée, le devis reste disponible et aucune notification n'est créée", async () => {
   const { user, produit, quote } = await panierMixte();
 
   await prisma.inventory.update({
@@ -375,7 +397,19 @@ test("Stock insuffisant sur un produit local : toute la commande est annulée, l
     /Stock insuffisant/
   );
 
+  // Aucune commande ni notification ne doit être créée.
   assert.equal(await prisma.order.count(), 0);
+
+  assert.equal(
+    await prisma.notification.count({
+      where: {
+        userId: user.id,
+        type: "ORDER_CREATED",
+      },
+    }),
+    0
+  );
+
   assert.equal(await prisma.orderItem.count(), 0);
   assert.equal(await prisma.cartItem.count(), 2);
 
@@ -402,7 +436,7 @@ test("Produit local désactivé + devis valide : refusé avec le message du prod
   assert.equal(await prisma.order.count(), 0);
 });
 
-test("Double clic sur Commander avec un devis : une seule commande", async () => {
+test("Double clic sur Commander avec un devis : une seule commande et une seule notification e-mail", async () => {
   const { user } = await panierMixte();
 
   const r = await Promise.allSettled([
@@ -410,12 +444,31 @@ test("Double clic sur Commander avec un devis : une seule commande", async () =>
     createOrderFromCart(user.id),
   ]);
 
+  // Une seule des deux demandes doit réussir.
   assert.equal(
     r.filter((x) => x.status === "fulfilled").length,
     1
   );
 
-  assert.equal(await prisma.order.count(), 1);
+  // Une seule commande doit être créée.
+  assert.equal(
+    await prisma.order.count({
+      where: { userId: user.id },
+    }),
+    1
+  );
+
+  // Une seule notification e-mail doit être mise en attente.
+  assert.equal(
+    await prisma.notification.count({
+      where: {
+        userId: user.id,
+        type: "ORDER_CREATED",
+        emailStatus: "PENDING",
+      },
+    }),
+    1
+  );
 });
 
 // =============== Validation admin puis commande ===============

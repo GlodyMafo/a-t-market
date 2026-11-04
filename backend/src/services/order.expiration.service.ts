@@ -1,8 +1,14 @@
+
 import { prisma } from "../lib/prisma";
 import {
   ORDER_RESERVATION_MINUTES,
   releaseStockForOrder,
 } from "./inventory.service";
+import {
+  orderRef,
+  publishNotification,
+  recordNotification,
+} from "./notification.service";
 
 // Paiements qui empêchent d'annuler une commande (argent reçu ou en cours)
 const ACTIVE_PAYMENT_STATUSES = ["PENDING", "PARTIAL", "PAID"] as const;
@@ -30,10 +36,12 @@ export async function expireUnpaidOrders(): Promise<number> {
 
   for (const candidate of candidates) {
     try {
-      const done = await prisma.$transaction(async (tx) => {
+      const notification = await prisma.$transaction(async (tx) => {
         // Même verrou que createPayment : un paiement en cours de création et
         // une expiration ne peuvent pas se croiser.
-        await tx.$queryRaw`SELECT id FROM "Order" WHERE id = ${candidate.id} FOR UPDATE`;
+        await tx.$queryRaw`
+          SELECT id FROM "Order" WHERE id = ${candidate.id} FOR UPDATE
+        `;
 
         // On revérifie sous verrou : la situation a pu changer depuis la liste.
         const stillExpirable = await tx.order.findFirst({
@@ -47,7 +55,7 @@ export async function expireUnpaidOrders(): Promise<number> {
           select: { id: true },
         });
 
-        if (!stillExpirable) return false;
+        if (!stillExpirable) return null;
 
         await tx.order.update({
           where: { id: candidate.id },
@@ -55,12 +63,32 @@ export async function expireUnpaidOrders(): Promise<number> {
         });
 
         await releaseStockForOrder(tx, candidate.id);
-        return true;
+
+        // La notification est créée dans la même transaction que l'annulation.
+        // Si la transaction échoue, elle est également annulée.
+        return recordNotification(tx, {
+          userId: (
+            await tx.order.findUniqueOrThrow({
+              where: { id: candidate.id },
+              select: { userId: true },
+            })
+          ).userId,
+          type: "ORDER_CANCELLED",
+          orderId: candidate.id,
+          title: "Commande expirée",
+          message: `Votre commande ${orderRef(candidate.id)} a été annulée automatiquement faute de paiement dans le délai prévu.`,
+          emailWanted: true,
+          data: {
+            reason: "RESERVATION_EXPIRED",
+          },
+        });
       });
 
-      if (done) {
+      if (notification) {
         expired++;
-        console.log("ORDER EXPIRED, STOCK RELEASED:", candidate.id);
+
+        // Publication après validation de la transaction.
+        publishNotification(notification);
       }
     } catch (error: any) {
       console.error("ORDER EXPIRATION ERROR:", candidate.id, error.message);

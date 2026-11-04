@@ -72,7 +72,7 @@ export async function settlePaymentByDepositId(
 
   // --- Échec confirmé par PawaPay ---
   if (remoteStatus === "FAILED") {
-       // Le client est prévenu une seule fois : seul l'appel qui fait réellement passer le paiement à FAILED notifie.
+    // Le client est prévenu une seule fois : seul l'appel qui fait réellement passer le paiement à FAILED notifie.
     const note = await prisma.$transaction(async (tx) => {
       const failed = await tx.payment.updateMany({
         where: { id: payment.id, status: "PENDING" },
@@ -92,7 +92,11 @@ export async function settlePaymentByDepositId(
         orderId: payment.orderId,
         title: "Paiement échoué",
         message: `Votre paiement de ${formatUsd(payment.amount)} pour la commande ${orderRef(payment.orderId)} n'a pas abouti. Vous pouvez réessayer.`,
-        data: { paymentId: payment.id },
+        emailWanted: true,
+        data: {
+          paymentId: payment.id,
+          amount: payment.amount.toString(),
+        },
       });
     });
     if (note) publishNotification(note);
@@ -140,7 +144,7 @@ export async function settlePaymentByDepositId(
   }
 
   // --- Transaction atomique ---
-   const settled = await prisma.$transaction(async (tx) => {
+  const settled = await prisma.$transaction(async (tx) => {
     const notes: RecordedNotification[] = [];
 
     // On verrouille la commande : deux paiements de la même commande
@@ -204,24 +208,25 @@ export async function settlePaymentByDepositId(
       // Notification du client, écrite dans la même transaction que le paiement.
       const ref = orderRef(payment.orderId);
       const restant = Math.max(toCents(order.totalAmount.toString()) - paidCents, 0) / 100;
-      notes.push(
-        await recordNotification(tx, {
-          userId: order.userId,
-          type: "PAYMENT_CONFIRMED",
-          orderId: payment.orderId,
-          title: "Paiement confirmé",
-          message:
-            newStatus === "PAID"
-              ? `Votre paiement de ${formatUsd(payment.amount)} a été reçu. Votre commande ${ref} est validée.`
-              : `Votre paiement de ${formatUsd(payment.amount)} a été reçu pour la commande ${ref}. Il reste ${formatUsd(restant)} à payer.`,
-          data: {
-            paymentId: payment.id,
-            orderStatus: newStatus,
-            paidAmount: payment.amount.toString(),
-            remainingAmount: restant.toFixed(2),
-          },
-        })
-      );
+ notes.push(
+  await recordNotification(tx, {
+    userId: order.userId,
+    type: "PAYMENT_CONFIRMED",
+    orderId: payment.orderId,
+    title: "Paiement confirmé",
+    message:
+      newStatus === "PAID"
+        ? `Votre paiement de ${formatUsd(payment.amount)} a été reçu. Votre commande ${ref} est validée.`
+        : `Votre paiement de ${formatUsd(payment.amount)} a été reçu pour la commande ${ref}. Il reste ${formatUsd(restant)} à payer.`,
+    emailWanted: true,
+    data: {
+      paymentId: payment.id,
+      orderStatus: newStatus,
+      paidAmount: payment.amount.toString(),
+      remainingAmount: restant.toFixed(2),
+    },
+  })
+);
     } else {
       console.error(
         `ALERTE PAIEMENT : paiement ${payment.id} reçu pour une commande au statut ${order?.status}`

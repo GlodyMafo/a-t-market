@@ -146,13 +146,18 @@ test("Changement de statut : notification au propriétaire de la commande, avec 
   await postTrackingEvent({ orderId: order.id, status: "PURCHASED", message: "Acheté sur SHEIN", actorId: admin.id });
 
   const notes = await journal(user.id);
-  assert.deepEqual(notes.map((n) => n.title), ["Commande validée", "Produit acheté"]);
-  assert.equal(notes[1].type, "ORDER_STATUS_CHANGED");
-  assert.match(notes[1].message, /Produit acheté — Acheté sur SHEIN/);
-  assert.deepEqual(notes[1].data, { status: "PURCHASED", label: "Produit acheté" });
+  assert.deepEqual(notes[0].data, {
+    status: "ORDER_VALIDATED",
+    label: "Commande validée",
+  });
+  assert.equal(notes[0].emailStatus, "NONE");
 
-  assert.deepEqual(emis.map((e) => e.userId), [user.id, user.id]);
-  assert.equal((await journal(autre.id)).length, 0);
+  assert.deepEqual(notes[1].data, {
+    status: "PURCHASED",
+    label: "Produit acheté",
+    emailMessage: "Acheté sur SHEIN",
+  });
+  assert.equal(notes[1].emailStatus, "PENDING");
 });
 
 test("Transition refusée : ni notification, ni envoi", async () => {
@@ -546,6 +551,78 @@ test("recordNotification : sans emailWanted, aucune livraison e-mail n'est deman
   assert.equal(persisted.emailStatus, "NONE");
   assert.equal(persisted.emailAttempts, 0);
   assert.equal(persisted.emailSentAt, null);
+});
+
+test("Suivi international : seuls les six statuts prévus déclenchent un e-mail", async () => {
+  const { user, order, admin } = await commandePayee("INTERNATIONAL");
+
+  const statuses = [
+    "ORDER_VALIDATED",
+    "PURCHASED",
+    "IN_CHINA",
+    "IN_TRANSIT",
+    "ARRIVED_DRC",
+    "OUT_FOR_DELIVERY",
+    "DELIVERED",
+  ] as const;
+
+  for (const status of statuses) {
+    await postTrackingEvent({
+      orderId: order.id,
+      status,
+      actorId: admin.id,
+    });
+  }
+
+  const notes = await journal(user.id);
+
+  assert.equal(notes.length, statuses.length);
+
+  assert.deepEqual(
+    notes.map((n) => n.emailStatus),
+    [
+      "NONE",
+      "PENDING",
+      "NONE",
+      "PENDING",
+      "PENDING",
+      "PENDING",
+      "PENDING",
+    ]
+  );
+
+  assert.equal(
+    notes.filter((n) => n.emailStatus === "PENDING").length,
+    5
+  );
+});
+
+test("Suivi local : PREPARING, OUT_FOR_DELIVERY et DELIVERED déclenchent un e-mail", async () => {
+  const { user, order, admin } = await commandePayee("LOCAL");
+
+  const statuses = [
+    "ORDER_VALIDATED",
+    "PREPARING",
+    "OUT_FOR_DELIVERY",
+    "DELIVERED",
+  ] as const;
+
+  for (const status of statuses) {
+    await postTrackingEvent({
+      orderId: order.id,
+      status,
+      actorId: admin.id,
+    });
+  }
+
+  const notes = await journal(user.id);
+
+  assert.equal(notes.length, 4);
+
+  assert.deepEqual(
+    notes.map((n) => n.emailStatus),
+    ["NONE", "PENDING", "PENDING", "PENDING"]
+  );
 });
 
 
