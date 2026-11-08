@@ -1,0 +1,16 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const subcategory_controller_1 = require("../controllers/subcategory.controller");
+const auth_middleware_1 = require("../middlewares/auth.middleware");
+const admin_middleware_1 = require("../middlewares/admin.middleware");
+const validate_1 = require("../middlewares/validate");
+const common_validator_1 = require("../validators/common.validator");
+const catalog_validator_1 = require("../validators/catalog.validator");
+const router = (0, express_1.Router)();
+router.post("/", auth_middleware_1.authMiddleware, admin_middleware_1.adminMiddleware, (0, validate_1.validate)({ body: catalog_validator_1.createSubCategorySchema }), subcategory_controller_1.createSubCategoryController);
+router.get("/", subcategory_controller_1.getSubCategoriesController);
+router.get("/:id", (0, validate_1.validate)({ params: common_validator_1.idParams }), subcategory_controller_1.getSubCategoryByIdController);
+router.patch("/:id", auth_middleware_1.authMiddleware, admin_middleware_1.adminMiddleware, (0, validate_1.validate)({ params: common_validator_1.idParams, body: catalog_validator_1.updateSubCategorySchema }), subcategory_controller_1.updateSubCategoryController);
+router.patch("/:id/active", auth_middleware_1.authMiddleware, admin_middleware_1.adminMiddleware, (0, validate_1.validate)({ params: common_validator_1.idParams, body: catalog_validator_1.setActiveSchema }), subcategory_controller_1.setSubCategoryActiveController);
+exports.default = router;

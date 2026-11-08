@@ -1,0 +1,15 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const auth_middleware_1 = require("../middlewares/auth.middleware");
+const validate_1 = require("../middlewares/validate");
+const account_controller_1 = require("../controllers/account.controller");
+const account_validator_1 = require("../validators/account.validator");
+const router = (0, express_1.Router)();
+router.use(auth_middleware_1.authMiddleware);
+router.patch("/me", (0, validate_1.validate)({ body: account_validator_1.updateProfileSchema }), account_controller_1.updateProfileController);
+router.get("/me/addresses", account_controller_1.listAddressesController);
+router.post("/me/addresses", (0, validate_1.validate)({ body: account_validator_1.addressSchema }), account_controller_1.createAddressController);
+router.patch("/me/addresses/:addressId", (0, validate_1.validate)({ params: account_validator_1.addressIdParams, body: account_validator_1.updateAddressSchema }), account_controller_1.updateAddressController);
+router.delete("/me/addresses/:addressId", (0, validate_1.validate)({ params: account_validator_1.addressIdParams }), account_controller_1.deleteAddressController);
+exports.default = router;

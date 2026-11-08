@@ -1,0 +1,36 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.quoteSnapshot = quoteSnapshot;
+/**
+ * Photographie d'un devis (montants en texte) : copie figée utilisée
+ *  - dans l'historique des décisions admin (QuoteRevision),
+ *  - dans chaque article de commande issu d'un devis (OrderItem.quoteSnapshot).
+ * Contient tout ce dont l'équipe a besoin pour acheter l'article (lien, nom, options, montants).
+ */
+function quoteSnapshot(quote) {
+    const text = (value) => value === null ? null : value.toString();
+    return {
+        quoteId: quote.id,
+        productUrl: quote.productUrl,
+        productName: quote.productName,
+        status: quote.status,
+        currency: quote.currency,
+        sourceProductPrice: text(quote.sourceProductPrice),
+        sourceCurrency: quote.sourceCurrency,
+        exchangeRate: text(quote.exchangeRate),
+        minOrderQuantity: quote.minOrderQuantity,
+        productPrice: text(quote.productPrice),
+        productWeight: text(quote.productWeight),
+        weightSource: quote.weightSource,
+        shippingCost: text(quote.shippingCost),
+        customsCost: text(quote.customsCost),
+        commissionCost: text(quote.commissionCost),
+        totalPrice: text(quote.totalPrice),
+        commissionRate: text(quote.commissionRate),
+        chinaPricePerKg: text(quote.chinaPricePerKg),
+        fixedFee: text(quote.fixedFee),
+        adminNotes: quote.adminNotes,
+        options: quote.options,
+        expiresAt: quote.expiresAt ? quote.expiresAt.toISOString() : null,
+    };
+}

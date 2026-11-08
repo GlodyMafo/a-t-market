@@ -1,24 +1,7 @@
-# Dependencies
-node_modules/
-
-# Environment
+node_modules
+# Keep environment variables out of version control
 .env
-.env.*
 
-# Next.js
-.next/
+/generated/prisma
 
-# Build
-dist/
-build/
-
-# Python
-__pycache__/
-.venv/
-
-# Logs
-*.log
-
-# OS
-.DS_Store
-Thumbs.db
+/email-previews

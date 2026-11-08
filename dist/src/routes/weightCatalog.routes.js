@@ -1,0 +1,15 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const weightCatalog_controller_1 = require("../controllers/weightCatalog.controller");
+const auth_middleware_1 = require("../middlewares/auth.middleware");
+const admin_middleware_1 = require("../middlewares/admin.middleware");
+const validate_1 = require("../middlewares/validate");
+const common_validator_1 = require("../validators/common.validator");
+const router = (0, express_1.Router)();
+router.use(auth_middleware_1.authMiddleware);
+router.use(admin_middleware_1.adminMiddleware);
+router.post("/", weightCatalog_controller_1.createOrUpdateWeightCatalogController);
+router.get("/", weightCatalog_controller_1.getWeightCatalogController);
+router.get("/subcategory/:subCategoryId", weightCatalog_controller_1.getWeightBySubCategoryController, (0, validate_1.validate)({ params: common_validator_1.subCategoryIdParams }));
+exports.default = router;

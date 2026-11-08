@@ -1,0 +1,244 @@
+import bcrypt from "bcrypt";
+
+import { prisma } from "../lib/prisma";
+
+import { generateToken } from "../utils/jwt";
+
+import { sendVerificationEmail, USER_SELECT } from "./account.service";
+
+// Hash factice : on compare toujours un mot de passe, même si l'email est inconnu,
+// pour que la durée de réponse ne révèle pas quels emails ont un compte.
+const HASH_FACTICE = "$2b$10$oJgQV632JIPIw4XHYA3HguTF8nBN1Pdomiu8hqlLmpyMeyzil3ywe";
+
+interface RegisterData {
+
+  email: string;
+
+  password: string;
+
+  phone?: string;
+
+}
+
+interface LoginData {
+
+  email: string;
+
+  password: string;
+
+}
+
+export async function register(
+  data: RegisterData
+) {
+
+  const {
+    email,
+    password,
+    phone
+  } = data;
+
+
+  const existingUser =
+    await prisma.user.findUnique({
+
+      where: {
+        email
+      }
+
+    });
+
+
+  if (existingUser) {
+
+    throw new Error(
+      "Cet email est déjà utilisé"
+    );
+
+  }
+
+
+  if (phone) {
+
+    const existingPhone =
+      await prisma.user.findUnique({
+
+        where: {
+          phone
+        }
+
+      });
+
+
+    if (existingPhone) {
+
+      throw new Error(
+        "Ce numéro est déjà utilisé"
+      );
+
+    }
+
+  }
+
+
+  const hashedPassword =
+    await bcrypt.hash(
+      password,
+      10
+    );
+
+
+  const user =
+    await prisma.user.create({
+      data: {
+        email,
+        password: hashedPassword,
+        phone
+      }
+    })
+      .catch((error: any) => {
+        // Deux inscriptions simultanées avec le même email ou numéro.
+        if (error?.code === "P2002") {
+          throw new Error("Cet email ou ce numéro est déjà utilisé");
+        }
+        throw error;
+      });
+
+  const token =
+    generateToken({
+
+      userId:
+        user.id,
+
+      role:
+        user.role
+
+    });
+
+  // L'inscription ne dépend jamais de l'envoi de l'e-mail.
+  void sendVerificationEmail(user.id, user.email).catch(() => undefined);
+
+  return {
+
+    user: {
+
+      id: user.id,
+
+      email: user.email,
+
+      phone: user.phone,
+
+      role: user.role
+
+    },
+
+    token,
+
+
+
+  };
+
+}
+
+
+export async function login(
+  data: LoginData
+) {
+
+  const {
+    email,
+    password
+  } = data;
+
+
+  const user =
+    await prisma.user.findUnique({
+
+      where: {
+        email
+      }
+
+    });
+
+
+  if (!user) {
+    await bcrypt.compare(password, HASH_FACTICE);
+    throw new Error("Identifiants invalides");
+  }
+
+
+  const passwordMatch =
+    await bcrypt.compare(
+      password,
+      user.password
+    );
+
+
+  if (!passwordMatch) {
+
+    throw new Error(
+      "Identifiants invalides"
+    );
+
+  }
+
+
+  const token =
+    generateToken({
+
+      userId:
+        user.id,
+
+      role:
+        user.role
+
+    });
+
+
+  return {
+
+    user: {
+
+      id: user.id,
+
+      email: user.email,
+
+      phone: user.phone,
+
+      role: user.role
+
+    },
+
+    token
+
+  };
+
+}
+
+
+export async function getCurrentUser(
+  userId: string
+) {
+
+  const user =
+    await prisma.user.findUnique({
+
+      where: {
+        id: userId
+      },
+
+      select: USER_SELECT
+
+    });
+
+  if (!user) {
+
+    throw new Error(
+      "Utilisateur introuvable"
+    );
+
+  }
+
+  return user;
+
+}

@@ -1,0 +1,683 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum ProductType {
+  LOCAL
+  INTERNATIONAL
+}
+
+enum PaymentStatus {
+  PENDING
+
+  PARTIAL
+
+  PAID
+
+  FAILED
+
+  EXPIRED
+
+  REFUNDED
+}
+
+enum PaymentType {
+  PRODUCT
+
+  SHIPPING
+
+  FULL
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+
+  PARTIALLY_PAID
+
+  PAID
+
+  DELIVERED
+
+  CANCELLED
+}
+
+enum TrackingStatus {
+  ORDER_VALIDATED
+
+  PURCHASED
+
+  PREPARING
+
+  IN_CHINA
+
+  IN_TRANSIT
+
+  ARRIVED_DRC
+
+  OUT_FOR_DELIVERY
+
+  DELIVERED
+}
+
+enum InventoryMovementType {
+  IN
+  OUT
+}
+
+enum QuoteWeightSource {
+  EXTRACTED
+  CATALOG_ESTIMATE
+  ADMIN
+}
+
+enum QuoteRevisionAction {
+  APPROVED
+  REJECTED
+}
+
+enum QuoteStatus {
+  AUTO_APPROVED
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum VariantSource {
+  LOCAL
+  EXTERNAL
+}
+
+enum NotificationType {
+  PAYMENT_CONFIRMED
+  PAYMENT_FAILED
+  ORDER_STATUS_CHANGED
+  ORDER_CREATED
+  ORDER_CANCELLED
+}
+
+// État de l'e-mail associé à une notification.
+// NONE = aucun e-mail prévu ; PENDING = à envoyer (ou à relancer) ; SENT = envoyé ; FAILED = abandonné après les tentatives.
+enum EmailStatus {
+  NONE
+  PENDING
+  SENT
+  FAILED
+}
+
+enum Gender {
+  FEMALE
+  MALE
+}
+
+enum AuthTokenType {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
+
+model User {
+  id String @id @default(cuid())
+
+  email String @unique
+
+  phone String? @unique
+
+  password String
+
+  role Role @default(USER)
+
+  cart Cart?
+
+  orders Order[]
+
+  quotes InternationalQuote[]
+
+  quoteRevisions QuoteRevision[]
+
+  trackingEventsPosted TrackingEvent[] @relation("TrackingEventActor")
+
+  notifications Notification[]
+
+  firstName       String?
+
+  lastName        String?
+
+  birthDate       DateTime? @db.Date
+
+  gender          Gender?
+
+  emailVerifiedAt DateTime?
+
+  authTokens AuthToken[]
+  addresses  Address[]
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+}
+
+model Product {
+  id String @id @default(cuid())
+
+  name String
+
+  slug String @unique
+
+  description String?
+
+  price Decimal @db.Decimal(10, 2)
+
+  margin Decimal @default(0) @db.Decimal(10, 2)
+
+  currency String @default("USD")
+
+  type ProductType @default(LOCAL)
+
+  isActive Boolean @default(true)
+
+  inventory Inventory?
+
+  images ProductImage[]
+
+  variants ProductVariant[]
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  cartItems CartItem[]
+
+  orderItems OrderItem[]
+
+  movements InventoryMovement[]
+
+  categoryId String?
+
+  category Category? @relation(fields: [categoryId], references: [id])
+
+  subCategoryId String?
+
+  subCategory SubCategory? @relation(fields: [subCategoryId], references: [id])
+}
+
+model ProductVariant {
+  id String @id @default(cuid())
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  size String?
+
+  color String?
+
+  sku String?
+
+  externalId String?
+
+  source VariantSource @default(LOCAL)
+
+  isAvailable Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([productId])
+  @@index([externalId])
+}
+
+model ProductImage {
+  id String @id @default(cuid())
+
+  productId String
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  imageUrl String
+
+  position Int
+
+  createdAt DateTime @default(now())
+}
+
+model Inventory {
+  id String @id @default(cuid())
+
+  productId String @unique
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  quantity Int @default(0)
+
+  updatedAt DateTime @updatedAt
+}
+
+model Cart {
+  id String @id @default(cuid())
+
+  userId String @unique
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  items CartItem[]
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+}
+
+model CartItem {
+  id String @id @default(cuid())
+
+  cartId String
+
+  cart Cart @relation(fields: [cartId], references: [id], onDelete: Cascade)
+
+  productId String?
+
+  product Product? @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  quoteId String?
+
+  quote InternationalQuote? @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  quantity Int @default(1)
+
+  @@unique([cartId, productId])
+  @@unique([cartId, quoteId])
+}
+
+model Order {
+  id String @id @default(cuid())
+
+  userId String
+
+  user User @relation(fields: [userId], references: [id])
+
+  status OrderStatus @default(PENDING_PAYMENT)
+
+  productsAmount Decimal @db.Decimal(10, 2)
+
+  shippingAmount Decimal @default(0) @db.Decimal(10, 2)
+
+  totalAmount Decimal @db.Decimal(10, 2)
+
+  items OrderItem[]
+
+  payments Payment[]
+
+  trackingEvents TrackingEvent[]
+
+  notifications Notification[]
+
+  createdAt DateTime @default(now())
+}
+
+model OrderItem {
+  id String @id @default(cuid())
+
+  orderId String
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  productId String?
+
+  product Product? @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  quoteId String?
+
+  quote InternationalQuote? @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+
+  quoteSnapshot Json?
+
+  quantity Int
+
+  basePrice Decimal @default(0) @db.Decimal(10, 2)
+
+  margin Decimal @default(0) @db.Decimal(10, 2)
+
+  price Decimal @db.Decimal(10, 2)
+
+  @@index([quoteId])
+}
+
+model Payment {
+  id String @id @default(cuid())
+
+  orderId String
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  amount Decimal @db.Decimal(10, 2)
+
+  type PaymentType @default(FULL)
+
+  status PaymentStatus @default(PENDING)
+
+  providerReference String?
+
+  webhookLogs PaymentWebhookLog[]
+
+  createdAt DateTime @default(now())
+}
+
+model TrackingEvent {
+  id String @id @default(cuid())
+
+  orderId String
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  status TrackingStatus
+
+  fromStatus TrackingStatus?
+
+  actorId String?
+
+  actor User? @relation("TrackingEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  message String?
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId, createdAt])
+}
+
+model InternationalQuote {
+  id String @id @default(cuid())
+
+  userId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  productUrl String
+
+  productName String?
+
+  productPrice Decimal @db.Decimal(10, 2)
+
+  shippingCost Decimal @db.Decimal(10, 2)
+
+  customsCost Decimal @db.Decimal(10, 2)
+
+  commissionCost Decimal @db.Decimal(10, 2)
+
+  productWeight Decimal? @db.Decimal(10, 2)
+
+  subCategoryId String?
+
+  subCategory SubCategory? @relation(fields: [subCategoryId], references: [id])
+
+  status QuoteStatus @default(PENDING_REVIEW)
+
+  currency String @default("USD")
+
+  sourceProductPrice Decimal? @db.Decimal(10, 2)
+
+  sourceCurrency String?
+
+  minOrderQuantity Int?
+
+  exchangeRate Decimal? @db.Decimal(10, 6)
+
+  weightSource QuoteWeightSource?
+
+  commissionRate Decimal? @db.Decimal(10, 2)
+
+  chinaPricePerKg Decimal? @db.Decimal(10, 2)
+
+  fixedFee Decimal? @db.Decimal(10, 2)
+
+  revisions QuoteRevision[]
+
+  previewId String? @unique
+
+  expiresAt DateTime?
+
+  options String?
+
+  cartItems CartItem[]
+
+  orderItems OrderItem[]
+
+  adminNotes String?
+
+  totalPrice Decimal @db.Decimal(10, 2)
+
+  createdAt DateTime @default(now())
+}
+
+model Setting {
+  id String @id @default(cuid())
+
+  key String @unique
+
+  value String
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+}
+
+model PaymentWebhookLog {
+  id String @id @default(cuid())
+
+  depositId String
+
+  paymentId String?
+
+  payment Payment? @relation(fields: [paymentId], references: [id])
+
+  status String
+
+  payload Json
+
+  processed Boolean @default(false)
+
+  error String?
+
+  createdAt DateTime @default(now())
+}
+
+model InventoryMovement {
+  id String @id @default(cuid())
+
+  productId String
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  quantity Int
+
+  type InventoryMovementType
+
+  reason String?
+
+  createdAt DateTime @default(now())
+}
+
+model GlobalSettings {
+  id String @id @default(cuid())
+
+  commissionRate Decimal @db.Decimal(10, 2)
+
+  chinaPricePerKg Decimal @db.Decimal(10, 2)
+
+  fixedFee Decimal @db.Decimal(10, 2)
+
+  aedToUsdRate Decimal? @db.Decimal(10, 6)
+
+  cnyToUsdRate Decimal? @db.Decimal(10, 6)
+
+    /// Plafond (USD) du total au-delà duquel un devis est toujours vérifié par l'équipe. Vide = pas de plafond.
+  autoApproveMaxUsd Decimal? @db.Decimal(10, 2)
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+}
+
+model Category {
+  id String @id @default(cuid())
+
+  name String @unique
+
+  slug String @unique
+
+  description String?
+
+  isActive Boolean @default(true)
+
+  products Product[]
+
+  subCategories SubCategory[]
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+}
+
+model SubCategory {
+  id String @id @default(cuid())
+
+  name String
+
+  slug String @unique
+
+  description String?
+
+  isActive Boolean @default(true)
+
+  categoryId String
+
+  category Category @relation(fields: [categoryId], references: [id])
+
+  products Product[]
+
+  quotes InternationalQuote[]
+
+  weightCatalog WeightCatalog?
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+}
+
+model WeightCatalog {
+  id String @id @default(cuid())
+
+  subCategoryId String @unique
+
+  subCategory SubCategory @relation(fields: [subCategoryId], references: [id])
+
+  estimatedWeightKg Decimal @db.Decimal(10, 2)
+
+  notes String?
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+}
+
+model QuoteRevision {
+  id             String              @id @default(cuid())
+  quoteId        String
+  quote          InternationalQuote  @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+  adminId        String
+  admin          User                @relation(fields: [adminId], references: [id], onDelete: Restrict)
+  action         QuoteRevisionAction
+  note           String?
+  snapshotBefore Json
+  snapshotAfter  Json
+  createdAt      DateTime            @default(now())
+
+  @@index([quoteId])
+}
+
+// Journal des notifications : une ligne par événement important pour le client.
+// Le temps réel (Socket.io) n'est qu'un moyen de livrer plus vite ce qui est déjà écrit ici.
+model Notification {
+  id String @id @default(cuid())
+
+  userId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type NotificationType
+
+  orderId String?
+
+  order Order? @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  title String
+
+  message String
+
+  data Json?
+
+  readAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  // ---------- Suivi de l'e-mail (jamais exposé par l'API) ----------
+
+  emailStatus EmailStatus @default(NONE)
+
+  // Nombre de tentatives d'envoi déjà faites.
+  emailAttempts Int @default(0)
+
+  emailLastAttemptAt DateTime?
+
+  // Prochaine tentative autorisée (sert aussi de « réservation » pendant un envoi).
+  emailNextAttemptAt DateTime?
+
+  emailSentAt DateTime?
+
+  // Raison technique de l'échec, sans identifiants (voir mailer.service).
+  emailError String?
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+  @@index([emailStatus, emailNextAttemptAt])
+}
+
+
+model AuthToken {
+  id        String        @id @default(cuid())
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      AuthTokenType
+  tokenHash String        @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime      @default(now())
+
+  @@index([userId, type])
+}
+
+model Address {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label         String?
+  fullName      String
+  phone         String
+  city          String
+  commune       String?
+  neighborhood  String
+  street        String
+  landmark      String?
+  isDefault     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
+}

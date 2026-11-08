@@ -1,0 +1,10 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const tracking_controller_1 = require("../controllers/tracking.controller");
+const auth_middleware_1 = require("../middlewares/auth.middleware");
+const common_validator_1 = require("../validators/common.validator");
+const validate_1 = require("../middlewares/validate");
+const router = (0, express_1.Router)();
+router.get("/order/:orderId", auth_middleware_1.authMiddleware, (0, validate_1.validate)({ params: common_validator_1.orderIdParams }), tracking_controller_1.getTrackingController);
+exports.default = router;

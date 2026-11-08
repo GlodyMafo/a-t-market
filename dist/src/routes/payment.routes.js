@@ -1,0 +1,11 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const payment_controller_1 = require("../controllers/payment.controller");
+const pawapay_callback_controller_1 = require("../controllers/pawapay.callback.controller");
+const rateLimiter_1 = require("../middlewares/rateLimiter");
+const auth_middleware_1 = require("../middlewares/auth.middleware");
+const router = (0, express_1.Router)();
+router.post("/", auth_middleware_1.authMiddleware, payment_controller_1.createPaymentController);
+router.post("/pawapay/callback", rateLimiter_1.webhookRateLimiter, pawapay_callback_controller_1.pawapayCallbackController);
+exports.default = router;
