@@ -12,6 +12,7 @@ import { parseSupportedProductUrl } from "./productUrl";
 import { resolveQuoteWeight } from "./quoteWeight";
 import { signQuotePreviewTicket } from "./quotePreviewTicket";
 import { decideQuoteStatus, REVIEW_NOTICE } from "./quoteDecision";
+import { buildVariantOptions, highestVariantPrice } from "./quoteVariants";
 
 /** Erreur dont le message peut être montré tel quel à un visiteur anonyme. */
 export class PreviewInputError extends Error {
@@ -27,6 +28,8 @@ export interface QuotePreview {
   productUrl: string;
   productName: string;
   imageUrl: string | null;
+  imageUrls: string[];
+  variantOptions: ReturnType<typeof buildVariantOptions>;
   currency: "USD";
   productPrice: string;
   shippingCost: string;
@@ -47,6 +50,35 @@ export interface PreviewDeps {
   gate?: ExtractionGate;
   fetchProduct?: (url: string) => Promise<NormalizedExternalProduct>;
   now?: Date;
+}
+
+const MAX_PREVIEW_IMAGES = 24;
+
+/** Photos de l'aperçu : HTTPS uniquement, sans doublon, bornées. Elles ne sont jamais incluses dans le ticket signé. */
+function previewImages(images: unknown): string[] {
+  if (!Array.isArray(images)) return [];
+
+  const seen = new Set<string>();
+
+  for (const item of images) {
+    if (typeof item !== "string") continue;
+
+    const url = item.trim().replace(/^\/\//, "https://");
+
+    if (
+      !/^https:\/\//i.test(url) ||
+      url.length > 2000 ||
+      seen.has(url)
+    ) {
+      continue;
+    }
+
+    seen.add(url);
+
+    if (seen.size >= MAX_PREVIEW_IMAGES) break;
+  }
+
+  return [...seen];
 }
 
 /**
@@ -131,12 +163,11 @@ export async function previewInternationalQuote(
     );
   }
 
-  // Les montants sont en dollars : on refuse toute autre devise.
-  // 6. Normalisation de la devise et conversion éventuelle en USD.
+  // 6. Normalisation de la devise et validation du prix de base.
   const sourceCurrency = String(product.currency).toUpperCase();
-  const sourcePrice = Number(product.price);
+  const basePrice = Number(product.price);
 
-  if (!Number.isFinite(sourcePrice) || sourcePrice <= 0) {
+  if (!Number.isFinite(basePrice) || basePrice <= 0) {
     throw new PreviewInputError(
       "Le prix de ce produit n'a pas pu être déterminé."
     );
@@ -152,11 +183,19 @@ export async function previewInternationalQuote(
     );
   }
 
+  // Prix prudent : le plus élevé entre le produit et ses variantes en stock.
+  const sourcePrice = highestVariantPrice(
+    product.variants,
+    sourceCurrency,
+    basePrice
+  );
+
   let price = sourcePrice;
   let sourceProductPrice: string | null = null;
   let ticketSourceCurrency: "AED" | "CNY" | null = null;
   let exchangeRate: string | null = null;
 
+  // Conversion AED vers USD.
   if (sourceCurrency === "AED") {
     const rate = Number(settings.aedToUsdRate);
 
@@ -186,6 +225,7 @@ export async function previewInternationalQuote(
     exchangeRate = rate.toString();
   }
 
+  // Conversion CNY vers USD.
   if (sourceCurrency === "CNY") {
     const rate = Number(settings.cnyToUsdRate);
 
@@ -238,9 +278,11 @@ export async function previewInternationalQuote(
   });
 
   const imageUrl = product.images?.[0] ?? null;
+
   const productName =
     (product.name || "Produit").trim().slice(0, 300) || "Produit";
 
+  // Le ticket signé conserve exactement sa structure précédente.
   const { ticket, expiresAt } = signQuotePreviewTicket(
     {
       productUrl: url.href,
@@ -259,8 +301,8 @@ export async function previewInternationalQuote(
       exchangeRate,
       minOrderQuantity:
         product.source === "1688" &&
-          Number.isInteger(product.minOrderQuantity) &&
-          Number(product.minOrderQuantity) > 0
+        Number.isInteger(product.minOrderQuantity) &&
+        Number(product.minOrderQuantity) > 0
           ? product.minOrderQuantity
           : null,
     },
@@ -273,6 +315,11 @@ export async function previewInternationalQuote(
       productUrl: url.href,
       productName,
       imageUrl,
+      imageUrls: previewImages(product.images),
+      variantOptions: buildVariantOptions(
+        product,
+        sourcePrice > basePrice
+      ),
       currency: "USD",
       productPrice: quote.productPrice.toString(),
       shippingCost: quote.shippingCost.toString(),
