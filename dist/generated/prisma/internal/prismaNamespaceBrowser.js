@@ -48,7 +48,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.JsonNullValueFilter = exports.NullsOrder = exports.QueryMode = exports.JsonNullValueInput = exports.NullableJsonNullValueInput = exports.SortOrder = exports.NotificationScalarFieldEnum = exports.QuoteRevisionScalarFieldEnum = exports.WeightCatalogScalarFieldEnum = exports.SubCategoryScalarFieldEnum = exports.CategoryScalarFieldEnum = exports.GlobalSettingsScalarFieldEnum = exports.InventoryMovementScalarFieldEnum = exports.PaymentWebhookLogScalarFieldEnum = exports.SettingScalarFieldEnum = exports.InternationalQuoteScalarFieldEnum = exports.TrackingEventScalarFieldEnum = exports.PaymentScalarFieldEnum = exports.OrderItemScalarFieldEnum = exports.OrderScalarFieldEnum = exports.CartItemScalarFieldEnum = exports.CartScalarFieldEnum = exports.InventoryScalarFieldEnum = exports.ProductImageScalarFieldEnum = exports.ProductVariantScalarFieldEnum = exports.ProductScalarFieldEnum = exports.UserScalarFieldEnum = exports.TransactionIsolationLevel = exports.ModelName = exports.AnyNull = exports.JsonNull = exports.DbNull = exports.NullTypes = exports.Decimal = void 0;
+exports.JsonNullValueFilter = exports.NullsOrder = exports.QueryMode = exports.JsonNullValueInput = exports.NullableJsonNullValueInput = exports.SortOrder = exports.AddressScalarFieldEnum = exports.AuthTokenScalarFieldEnum = exports.NotificationScalarFieldEnum = exports.QuoteRevisionScalarFieldEnum = exports.WeightCatalogScalarFieldEnum = exports.SubCategoryScalarFieldEnum = exports.CategoryScalarFieldEnum = exports.GlobalSettingsScalarFieldEnum = exports.InventoryMovementScalarFieldEnum = exports.PaymentWebhookLogScalarFieldEnum = exports.SettingScalarFieldEnum = exports.InternationalQuoteScalarFieldEnum = exports.TrackingEventScalarFieldEnum = exports.PaymentScalarFieldEnum = exports.OrderItemScalarFieldEnum = exports.OrderScalarFieldEnum = exports.CartItemScalarFieldEnum = exports.CartScalarFieldEnum = exports.InventoryScalarFieldEnum = exports.ProductImageScalarFieldEnum = exports.ProductVariantScalarFieldEnum = exports.ProductScalarFieldEnum = exports.UserScalarFieldEnum = exports.TransactionIsolationLevel = exports.ModelName = exports.AnyNull = exports.JsonNull = exports.DbNull = exports.NullTypes = exports.Decimal = void 0;
 const runtime = __importStar(require("@prisma/client/runtime/index-browser"));
 exports.Decimal = runtime.Decimal;
 exports.NullTypes = {
@@ -95,7 +95,9 @@ exports.ModelName = {
     SubCategory: 'SubCategory',
     WeightCatalog: 'WeightCatalog',
     QuoteRevision: 'QuoteRevision',
-    Notification: 'Notification'
+    Notification: 'Notification',
+    AuthToken: 'AuthToken',
+    Address: 'Address'
 };
 /*
  * Enums
@@ -112,6 +114,11 @@ exports.UserScalarFieldEnum = {
     phone: 'phone',
     password: 'password',
     role: 'role',
+    firstName: 'firstName',
+    lastName: 'lastName',
+    birthDate: 'birthDate',
+    gender: 'gender',
+    emailVerifiedAt: 'emailVerifiedAt',
     createdAt: 'createdAt',
     updatedAt: 'updatedAt'
 };
@@ -211,6 +218,7 @@ exports.InternationalQuoteScalarFieldEnum = {
     userId: 'userId',
     productUrl: 'productUrl',
     productName: 'productName',
+    imageUrl: 'imageUrl',
     productPrice: 'productPrice',
     shippingCost: 'shippingCost',
     customsCost: 'customsCost',
@@ -266,6 +274,7 @@ exports.GlobalSettingsScalarFieldEnum = {
     fixedFee: 'fixedFee',
     aedToUsdRate: 'aedToUsdRate',
     cnyToUsdRate: 'cnyToUsdRate',
+    autoApproveMaxUsd: 'autoApproveMaxUsd',
     createdAt: 'createdAt',
     updatedAt: 'updatedAt'
 };
@@ -322,6 +331,30 @@ exports.NotificationScalarFieldEnum = {
     emailNextAttemptAt: 'emailNextAttemptAt',
     emailSentAt: 'emailSentAt',
     emailError: 'emailError'
+};
+exports.AuthTokenScalarFieldEnum = {
+    id: 'id',
+    userId: 'userId',
+    type: 'type',
+    tokenHash: 'tokenHash',
+    expiresAt: 'expiresAt',
+    usedAt: 'usedAt',
+    createdAt: 'createdAt'
+};
+exports.AddressScalarFieldEnum = {
+    id: 'id',
+    userId: 'userId',
+    label: 'label',
+    fullName: 'fullName',
+    phone: 'phone',
+    city: 'city',
+    commune: 'commune',
+    neighborhood: 'neighborhood',
+    street: 'street',
+    landmark: 'landmark',
+    isDefault: 'isDefault',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt'
 };
 exports.SortOrder = {
     asc: 'asc',

@@ -1,11 +1,19 @@
+
 import { Prisma } from "../../generated/prisma/client";
 import { prisma } from "../lib/prisma";
 import { computeQuote, normalizeWeightKg } from "./pricing.service";
 import { activeOrderQuoteIds } from "./quoteEligibility";
 import { QuoteRow, quoteSnapshot as snapshotOf } from "./quoteSnapshot";
 import { quoteValidUntil } from "./internationalQuote.service";
-
-
+import {
+  publishNotification,
+  recordNotification,
+  type RecordedNotification,
+} from "./notification.service";
+import {
+  approvedNotification,
+  rejectedNotification,
+} from "./quoteNotifications";
 
 type Tx = Prisma.TransactionClient;
 
@@ -15,7 +23,6 @@ export class QuoteNotFoundError extends Error {
     this.name = "QuoteNotFoundError";
   }
 }
-
 
 /** Verrouille le devis : deux décisions admin simultanées passent l'une après l'autre. */
 async function lockQuote(tx: Tx, quoteId: string): Promise<QuoteRow> {
@@ -62,14 +69,14 @@ export interface ApproveQuoteInput {
  * n'en a pas). Le montant définitif est recalculé avec les réglages ACTUELS ; le devis
  * provisoire d'origine reste intact dans l'historique (QuoteRevision).
  */
-
-
 export async function approveQuote(
   quoteId: string,
   adminId: string,
   input: ApproveQuoteInput = {}
 ) {
-  return prisma.$transaction(async (tx) => {
+  const outbox: RecordedNotification[] = [];
+
+  const updated = await prisma.$transaction(async (tx) => {
     const quote = await lockQuote(tx, quoteId);
 
     if (quote.status !== "PENDING_REVIEW") {
@@ -86,8 +93,13 @@ export async function approveQuote(
     const adminProvidedWeight =
       input.weightKg !== undefined && input.weightKg !== null;
 
-    if (adminProvidedWeight && new Prisma.Decimal(input.weightKg!).decimalPlaces() > 2) {
-      throw new Error("Le poids doit avoir au maximum 2 décimales (précision de 10 g).");
+    if (
+      adminProvidedWeight &&
+      new Prisma.Decimal(input.weightKg!).decimalPlaces() > 2
+    ) {
+      throw new Error(
+        "Le poids doit avoir au maximum 2 décimales (précision de 10 g)."
+      );
     }
 
     const weight = adminProvidedWeight
@@ -137,8 +149,16 @@ export async function approveQuote(
       },
     });
 
+    outbox.push(
+      await recordNotification(tx, approvedNotification(updated))
+    );
+
     return updated;
   });
+
+  outbox.forEach((record) => publishNotification(record));
+
+  return updated;
 }
 
 /**
@@ -157,7 +177,9 @@ export async function rejectQuote(
     throw new Error("Un motif de rejet (3 à 500 caractères) est obligatoire.");
   }
 
-  return prisma.$transaction(async (tx) => {
+  const outbox: RecordedNotification[] = [];
+
+  const updated = await prisma.$transaction(async (tx) => {
     const quote = await lockQuote(tx, quoteId);
 
     // Un devis déjà dans une commande (non annulée) est figé : le client l'a payé ou va le payer.
@@ -190,8 +212,16 @@ export async function rejectQuote(
       },
     });
 
+    outbox.push(
+      await recordNotification(tx, rejectedNotification(updated, note))
+    );
+
     return updated;
   });
+
+  outbox.forEach((record) => publishNotification(record));
+
+  return updated;
 }
 
 /** Historique complet des décisions admin sur un devis, du plus ancien au plus récent. */

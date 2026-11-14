@@ -103,6 +103,9 @@ enum NotificationType {
   ORDER_STATUS_CHANGED
   ORDER_CREATED
   ORDER_CANCELLED
+    QUOTE_PENDING_REVIEW
+  QUOTE_APPROVED
+  QUOTE_REJECTED
 }
 
 // État de l'e-mail associé à une notification.
@@ -403,6 +406,8 @@ model InternationalQuote {
 
   productName String?
 
+  imageUrl String?
+
   productPrice Decimal @db.Decimal(10, 2)
 
   shippingCost Decimal @db.Decimal(10, 2)
@@ -450,6 +455,9 @@ model InternationalQuote {
   orderItems OrderItem[]
 
   adminNotes String?
+
+    /// Date à laquelle les administrateurs ont été prévenus de ce devis à valider (une seule fois).
+  adminNotifiedAt DateTime?
 
   totalPrice Decimal @db.Decimal(10, 2)
 

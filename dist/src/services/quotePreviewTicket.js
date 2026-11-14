@@ -25,7 +25,7 @@ const ticketSchema = zod_1.z
     productPrice: money,
     weightKg: money.nullable(),
     weightSource: zod_1.z.enum(["EXTRACTED", "CATALOG_ESTIMATE"]).nullable(),
-    subCategoryId: zod_1.z.string().min(1).max(100),
+    subCategoryId: zod_1.z.string().min(1).max(100).nullable().optional(),
     commissionRate: money,
     chinaPricePerKg: money,
     fixedFee: money,
@@ -35,6 +35,14 @@ const ticketSchema = zod_1.z
     exchangeRate: exchangeRateSchema.nullable().optional(),
     // MOQ facultatif : utilisé uniquement pour les produits 1688.
     minOrderQuantity: zod_1.z.number().int().min(1).max(999999).nullable().optional(),
+    // Prix par variante, uniquement quand ils diffèrent : prix distincts + table compacte [sku, index du prix].
+    variantPrices: zod_1.z.array(money).max(40).optional(),
+    variantTable: zod_1.z
+        .array(zod_1.z.tuple([zod_1.z.string().min(1).max(100), zod_1.z.number().int().min(0).max(39)]))
+        .max(100)
+        .optional(),
+    variantRequired: zod_1.z.boolean().optional(),
+    stockLimit: zod_1.z.number().int().min(1).max(999999).nullable().optional(),
 })
     .strict()
     .superRefine((ticket, ctx) => {
@@ -93,7 +101,7 @@ function signQuotePreviewTicket(data, now = new Date()) {
 function verifyQuotePreviewTicket(ticket, now = new Date()) {
     if (typeof ticket !== "string" ||
         ticket.length === 0 ||
-        ticket.length > 6000) {
+        ticket.length > 12000) {
         throw new Error(INVALID);
     }
     const parts = ticket.split(".");

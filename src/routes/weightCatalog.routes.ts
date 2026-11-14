@@ -31,8 +31,9 @@ router.get(
 
 router.get(
   "/subcategory/:subCategoryId",
+  validate({ params: subCategoryIdParams }),
   getWeightBySubCategoryController,
-  validate({ params: subCategoryIdParams })
+ 
 );
 
 export default router;

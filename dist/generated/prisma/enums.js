@@ -9,7 +9,7 @@
 * 🟢 You can import this file directly.
 */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.EmailStatus = exports.NotificationType = exports.VariantSource = exports.QuoteStatus = exports.QuoteRevisionAction = exports.QuoteWeightSource = exports.InventoryMovementType = exports.TrackingStatus = exports.OrderStatus = exports.PaymentType = exports.PaymentStatus = exports.ProductType = exports.Role = void 0;
+exports.AuthTokenType = exports.Gender = exports.EmailStatus = exports.NotificationType = exports.VariantSource = exports.QuoteStatus = exports.QuoteRevisionAction = exports.QuoteWeightSource = exports.InventoryMovementType = exports.TrackingStatus = exports.OrderStatus = exports.PaymentType = exports.PaymentStatus = exports.ProductType = exports.Role = void 0;
 exports.Role = {
     USER: 'USER',
     ADMIN: 'ADMIN'
@@ -83,4 +83,12 @@ exports.EmailStatus = {
     PENDING: 'PENDING',
     SENT: 'SENT',
     FAILED: 'FAILED'
+};
+exports.Gender = {
+    FEMALE: 'FEMALE',
+    MALE: 'MALE'
+};
+exports.AuthTokenType = {
+    EMAIL_VERIFICATION: 'EMAIL_VERIFICATION',
+    PASSWORD_RESET: 'PASSWORD_RESET'
 };

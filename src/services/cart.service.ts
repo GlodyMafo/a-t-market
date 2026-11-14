@@ -17,8 +17,8 @@ import {
   isCategoryActive,
   type CategoryChain,
 } from "./productAvailability";
-import { detectProductMarketplace } from "./productUrl";
 import { computeQuote } from "./pricing.service";
+import { notifyAdminsOfPendingQuotes } from "./quoteNotifications";
 
 type Tx = Prisma.TransactionClient;
 
@@ -127,6 +127,7 @@ const quoteFields = {
   productName: true,
   options: true,
   currency: true,
+  imageUrl: true,
   productPrice: true,
   productWeight: true,
   minOrderQuantity: true,
@@ -188,8 +189,7 @@ export async function getCartByUser(userId: string) {
         ordered.has(quote.id)
       );
 
-      const is1688 =
-        detectProductMarketplace(quote.productUrl) === "1688";
+      const is1688 = true; // le prix suit la quantité pour toutes les boutiques
 
       const minOrderQuantity = quote.minOrderQuantity;
 
@@ -266,7 +266,7 @@ export async function getCartByUser(userId: string) {
         issue,
         minOrderQuantity,
         minimumOrderMessage: belowMinimum
-          ? `Quantité minimale requise pour ce produit 1688 : ${minOrderQuantity}.`
+          ? `Quantité minimale requise pour ce produit : ${minOrderQuantity}.`
           : null,
         cartPricing: cartPricing
           ? {
@@ -279,6 +279,11 @@ export async function getCartByUser(userId: string) {
               isProvisional: cartPricing.isProvisional,
             }
           : null,
+        lineTotal: (
+          is1688 && cartPricing
+            ? cartPricing.totalPrice
+            : quote.totalPrice
+        ).toString(),
       };
     }
 
@@ -306,11 +311,19 @@ export async function getCartByUser(userId: string) {
       );
     }
 
+    const unitPrice = new Prisma.Decimal(product.price).plus(product.margin);
+
+    // La marge et le prix d'achat ne doivent jamais quitter le serveur.
+    const { margin: _margin, price: _price, ...publicProduct } = product;
+
     return {
       ...item,
+      product: publicProduct,
       kind: "LOCAL" as const,
       payable: issue === null,
       issue,
+      unitPrice: unitPrice.toString(),
+      lineTotal: unitPrice.mul(item.quantity).toString(),
     };
   });
 
@@ -353,7 +366,7 @@ export async function updateCartItemQuantity(
       },
       quote: {
         select: {
-          productUrl: true,
+          id: true,
         },
       },
     },
@@ -366,16 +379,6 @@ export async function updateCartItemQuantity(
   if (!item.product) {
     if (!item.quote) {
       throw new Error("Devis international introuvable.");
-    }
-
-    const marketplace = detectProductMarketplace(
-      item.quote.productUrl
-    );
-
-    if (marketplace !== "1688") {
-      throw new Error(
-        "La quantité des devis SHEIN et NOON ne peut pas être modifiée."
-      );
     }
 
     return prisma.cartItem.update({
@@ -465,18 +468,6 @@ async function attachQuote(
   },
   quantity = 1
 ): Promise<AttachResult> {
-  const marketplace = detectProductMarketplace(
-    quote.productUrl
-  );
-
-  if (marketplace !== "1688" && quantity !== 1) {
-    return {
-      status: "REJECTED",
-      reason:
-        "La quantité des devis SHEIN et NOON est limitée à 1.",
-    };
-  }
-
   const ordered = await activeOrderQuoteIds(tx, [quote.id]);
 
   const issue = quoteIssue(
@@ -602,8 +593,9 @@ const mergeSchema = z
           z
             .object({
               type: z.literal("INTERNATIONAL"),
-              ticket: z.string().min(1).max(6000),
+              ticket: z.string().min(1).max(12000),
               options: z.string().max(500).optional(),
+              variantSku: z.string().min(1).max(100).optional(),
               quantity: z.number().int().min(1).max(999).default(1),
             })
             .strict(),
@@ -676,6 +668,7 @@ export async function mergeGuestCart(
               index,
               item.ticket,
               item.options,
+              item.variantSku,
               item.quantity
             )
           );
@@ -689,6 +682,9 @@ export async function mergeGuestCart(
       timeout: 30000,
     }
   );
+
+  // Alerte administrateur après le commit, sans bloquer la réponse client.
+  void notifyAdminsOfPendingQuotes();
 
   return {
     results,
@@ -808,6 +804,7 @@ async function mergeInternationalItem(
   index: number,
   rawTicket: string,
   options: string | undefined,
+  variantSku: string | undefined,
   quantity: number
 ): Promise<MergeItemResult> {
   const base = {
@@ -819,18 +816,27 @@ async function mergeInternationalItem(
 
   try {
     ticket = verifyQuotePreviewTicket(rawTicket);
+
+    if (ticket.stockLimit && quantity > ticket.stockLimit) {
+      return {
+        ...base,
+        status: "REJECTED",
+        reason: `Seulement ${ticket.stockLimit} disponible(s) chez le vendeur.`,
+      };
+    }
   } catch {
     return {
       ...base,
       status: "REJECTED",
-      reason:
-        "Ticket invalide ou expiré : refaites l'aperçu du produit.",
+      reason: "Ticket invalide ou expiré : refaites l'aperçu du produit.",
     };
   }
 
-  // Un ticket ne crée jamais deux devis.
+  // Un ticket crée un devis distinct pour chaque variante sélectionnée.
+  const previewId = variantSku ? `${ticket.id}:${variantSku}` : ticket.id;
+
   let quote = await tx.internationalQuote.findUnique({
-    where: { previewId: ticket.id },
+    where: { previewId },
   });
 
   if (quote && quote.userId !== userId) {
@@ -847,7 +853,8 @@ async function mergeInternationalItem(
         tx,
         userId,
         ticket,
-        options
+        options,
+        variantSku
       );
     } catch (error) {
       if (error instanceof QuoteTicketError) {

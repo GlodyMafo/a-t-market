@@ -6,6 +6,7 @@ import { computeQuote, normalizeWeightKg } from "./pricing.service";
 import { parseSupportedProductUrl } from "./productUrl";
 import { QuotePreviewTicket } from "./quotePreviewTicket";
 import { decideQuoteStatus, REVIEW_NOTICE } from "./quoteDecision";
+import { resolveUnitPrice } from "./ticketPricing";
 
 /** Erreur « métier » : le ticket est correct mais ne peut pas (ou plus) devenir un devis. */
 export class QuoteTicketError extends Error {
@@ -24,13 +25,16 @@ export async function createQuoteFromTicket(
   tx: Prisma.TransactionClient,
   userId: string,
   ticket: QuotePreviewTicket,
-  options?: unknown
+  options?: unknown,
+  variantSku?: string | null
 ) {
   // Défense en profondeur : même si le ticket est signé, on revalide ce qu'il contient.
   try {
     parseSupportedProductUrl(ticket.productUrl);
   } catch {
-    throw new QuoteTicketError("Ce lien n'est plus pris en charge : refaites l'aperçu.");
+    throw new QuoteTicketError(
+      "Ce lien n'est plus pris en charge : refaites l'aperçu."
+    );
   }
 
   if (ticket.subCategoryId) {
@@ -55,13 +59,30 @@ export async function createQuoteFromTicket(
     throw new QuoteTicketError("Ticket d'aperçu invalide.");
   }
 
+  // Résolution du prix selon la variante sélectionnée.
+  let unitPrice: string;
+
+  try {
+    unitPrice = resolveUnitPrice(ticket, variantSku);
+  } catch (error) {
+    throw new QuoteTicketError(
+      error instanceof Error
+        ? error.message
+        : "Ticket d'aperçu invalide."
+    );
+  }
+
   let breakdown;
   let weight: Prisma.Decimal | null = null;
 
   try {
-    weight = ticket.weightKg === null ? null : normalizeWeightKg(ticket.weightKg);
+    weight =
+      ticket.weightKg === null
+        ? null
+        : normalizeWeightKg(ticket.weightKg);
+
     breakdown = computeQuote({
-      productPrice: ticket.productPrice,
+      productPrice: unitPrice,
       weightKg: weight,
       settings: {
         commissionRate: ticket.commissionRate,
@@ -85,7 +106,9 @@ export async function createQuoteFromTicket(
 
   // La validité du prix part de l'émission du ticket (et non de la fusion) :
   // un prix ne devient pas plus frais parce que le client s'est connecté plus tard.
-  const issuedAt = new Date((ticket.exp - PREVIEW_TICKET_TTL_HOURS * 3600) * 1000);
+  const issuedAt = new Date(
+    (ticket.exp - PREVIEW_TICKET_TTL_HOURS * 3600) * 1000
+  );
 
   return tx.internationalQuote.create({
     data: {
@@ -94,6 +117,7 @@ export async function createQuoteFromTicket(
       productName: ticket.productName,
       productPrice: breakdown.productPrice,
       productWeight: weight,
+      imageUrl: ticket.imageUrl ?? null,
       weightSource: ticket.weightSource,
       currency: "USD",
       sourceProductPrice: ticket.sourceProductPrice ?? null,
@@ -110,9 +134,27 @@ export async function createQuoteFromTicket(
       subCategoryId: ticket.subCategoryId ?? null,
       status,
       options: cleanQuoteOptions(options),
-      previewId: ticket.id,
-      expiresAt: status === "AUTO_APPROVED" ? quoteValidUntil(issuedAt) : null,
-      adminNotes: decision.reason ? REVIEW_NOTICE[decision.reason] : null,
+
+      previewId: variantSku
+        ? `${ticket.id}:${variantSku}`
+        : ticket.id,
+
+      expiresAt:
+        status === "AUTO_APPROVED"
+          ? quoteValidUntil(issuedAt)
+          : null,
+
+      adminNotes:
+        [
+          breakdown.isProvisional
+            ? "Poids inconnu : total provisoire, validation admin requise avant confirmation."
+            : null,
+          variantSku
+            ? `Variante choisie (SKU) : ${variantSku}`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" ") || null,
     },
   });
 }

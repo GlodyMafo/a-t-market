@@ -1,8 +1,13 @@
 
+import { Prisma } from "../../generated/prisma/client";
 import { prisma } from "../lib/prisma";
+
 import { ExternalProductService } from "./externalProduct.service";
 import { NormalizedExternalProduct } from "./externalProduct.types";
-import { ExtractionGate, previewExtractionGate } from "./extractionGate";
+import {
+  ExtractionGate,
+  previewExtractionGate,
+} from "./extractionGate";
 import { computeQuote } from "./pricing.service";
 import {
   inspectProductUrl,
@@ -12,7 +17,8 @@ import { parseSupportedProductUrl } from "./productUrl";
 import { resolveQuoteWeight } from "./quoteWeight";
 import { signQuotePreviewTicket } from "./quotePreviewTicket";
 import { decideQuoteStatus, REVIEW_NOTICE } from "./quoteDecision";
-import { buildVariantOptions, highestVariantPrice } from "./quoteVariants";
+import { prepareVariantPricing } from "./quoteVariants";
+import { buildProductDetails, stockLimitOf } from "./quoteDetails";
 
 /** Erreur dont le message peut être montré tel quel à un visiteur anonyme. */
 export class PreviewInputError extends Error {
@@ -24,12 +30,18 @@ export class PreviewInputError extends Error {
 
 const externalProductService = new ExternalProductService();
 
+type VariantPricingResult = ReturnType<typeof prepareVariantPricing>;
+
 export interface QuotePreview {
   productUrl: string;
   productName: string;
   imageUrl: string | null;
   imageUrls: string[];
-  variantOptions: ReturnType<typeof buildVariantOptions>;
+  details: ReturnType<typeof buildProductDetails>;
+  stockLimit: number | null;
+  variantOptions: VariantPricingResult["variantOptions"];
+  minOrderQuantity: number | null;
+  maxTotalPrice: string | null;
   currency: "USD";
   productPrice: string;
   shippingCost: string;
@@ -54,7 +66,10 @@ export interface PreviewDeps {
 
 const MAX_PREVIEW_IMAGES = 24;
 
-/** Photos de l'aperçu : HTTPS uniquement, sans doublon, bornées. Elles ne sont jamais incluses dans le ticket signé. */
+/**
+ * Photos de l'aperçu : HTTPS uniquement, sans doublon, bornées.
+ * Elles ne sont jamais incluses dans le ticket signé.
+ */
 function previewImages(images: unknown): string[] {
   if (!Array.isArray(images)) return [];
 
@@ -63,7 +78,7 @@ function previewImages(images: unknown): string[] {
   for (const item of images) {
     if (typeof item !== "string") continue;
 
-    const url = item.trim().replace(/^\/\//, "https://");
+    const url = item.trim().replace(/^http:\/\//i, "https://");
 
     if (
       !/^https:\/\//i.test(url) ||
@@ -82,7 +97,8 @@ function previewImages(images: unknown): string[] {
 }
 
 /**
- * Aperçu de prix pour un visiteur (avec ou sans compte) : calcule et renvoie un ticket signé.
+ * Aperçu de prix pour un visiteur (avec ou sans compte) :
+ * calcule et renvoie un ticket signé.
  * N'ÉCRIT RIEN en base de données.
  */
 export async function previewInternationalQuote(
@@ -127,7 +143,6 @@ export async function previewInternationalQuote(
       canonicalUrl = inspected.url.href;
     }
 
-    // Le parser existant vérifie actuellement les URL SHEIN prises en charge.
     canonicalUrl = parseSupportedProductUrl(canonicalUrl).href;
   } catch (error: any) {
     throw new PreviewInputError(
@@ -137,7 +152,7 @@ export async function previewInternationalQuote(
 
   const url = new URL(canonicalUrl);
 
-  // Le callback injecté dans les tests reçoit désormais toujours une URL canonique.
+  // Le callback injecté dans les tests reçoit toujours une URL canonique.
   const fetchProduct =
     deps.fetchProduct ??
     ((canonical: string) =>
@@ -183,21 +198,15 @@ export async function previewInternationalQuote(
     );
   }
 
-  // Prix prudent : le plus élevé entre le produit et ses variantes en stock.
-  const sourcePrice = highestVariantPrice(
-    product.variants,
-    sourceCurrency,
-    basePrice
-  );
+  // 7. Détermination du taux de conversion.
+  let rate = 1;
 
-  let price = sourcePrice;
   let sourceProductPrice: string | null = null;
   let ticketSourceCurrency: "AED" | "CNY" | null = null;
   let exchangeRate: string | null = null;
 
-  // Conversion AED vers USD.
   if (sourceCurrency === "AED") {
-    const rate = Number(settings.aedToUsdRate);
+    rate = Number(settings.aedToUsdRate);
 
     if (
       settings.aedToUsdRate === null ||
@@ -210,24 +219,11 @@ export async function previewInternationalQuote(
       );
     }
 
-    price = Math.round(
-      (sourcePrice * rate + Number.EPSILON) * 100
-    ) / 100;
-
-    if (!Number.isFinite(price) || price <= 0) {
-      throw new PreviewInputError(
-        "La conversion du prix en USD a échoué."
-      );
-    }
-
-    sourceProductPrice = sourcePrice.toFixed(2);
     ticketSourceCurrency = "AED";
-    exchangeRate = rate.toString();
   }
 
-  // Conversion CNY vers USD.
   if (sourceCurrency === "CNY") {
-    const rate = Number(settings.cnyToUsdRate);
+    rate = Number(settings.cnyToUsdRate);
 
     if (
       settings.cnyToUsdRate === null ||
@@ -240,20 +236,40 @@ export async function previewInternationalQuote(
       );
     }
 
-    price = Math.round(
-      (sourcePrice * rate + Number.EPSILON) * 100
-    ) / 100;
-
-    if (!Number.isFinite(price) || price <= 0) {
-      throw new PreviewInputError(
-        "La conversion du prix en USD a échoué."
-      );
-    }
-
-    sourceProductPrice = sourcePrice.toFixed(2);
     ticketSourceCurrency = "CNY";
+  }
+
+  // 8. Conversion USD commune au prix principal et aux variantes.
+  const toUsd = (value: number) =>
+    new Prisma.Decimal(
+      sourceCurrency === "USD" ? value : value * rate
+    )
+      .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP)
+      .toString();
+
+  const price = Number(toUsd(basePrice));
+
+  if (!Number.isFinite(price) || price <= 0) {
+    throw new PreviewInputError(
+      "La conversion du prix en USD a échoué."
+    );
+  }
+
+  if (sourceCurrency !== "USD") {
+    sourceProductPrice = basePrice.toFixed(2);
     exchangeRate = rate.toString();
   }
+
+  // 9. Préparation des prix des variantes.
+  const variantData = prepareVariantPricing({
+    product,
+    sourceCurrency,
+    toUsd,
+    basePriceUsd: String(price),
+  });
+
+  const unitPrice =
+    variantData.ticketFields.productPrice ?? String(price);
 
   const extractedWeight =
     product.source === "1688"
@@ -265,8 +281,9 @@ export async function previewInternationalQuote(
     null
   );
 
+  // 10. Calcul du devis avec le prix unitaire retenu.
   const quote = computeQuote({
-    productPrice: price,
+    productPrice: unitPrice,
     weightKg: weight,
     settings,
   });
@@ -282,33 +299,61 @@ export async function previewInternationalQuote(
   const productName =
     (product.name || "Produit").trim().slice(0, 300) || "Produit";
 
-  // Le ticket signé conserve exactement sa structure précédente.
+  // 11. Construction des détails et récupération de la limite de stock.
+  const details = buildProductDetails(product);
+  const stockLimit = stockLimitOf(product);
+
+  // 12. Données du ticket.
+  const ticketData = {
+    productUrl: url.href,
+    productName,
+    imageUrl:
+      imageUrl && imageUrl.length <= 2000 ? imageUrl : null,
+    productPrice: unitPrice,
+    weightKg: weight ? weight.toString() : null,
+    weightSource: source,
+    subCategoryId: null,
+    commissionRate: settings.commissionRate.toString(),
+    chinaPricePerKg: settings.chinaPricePerKg.toString(),
+    fixedFee: settings.fixedFee.toString(),
+    sourceProductPrice,
+    sourceCurrency: ticketSourceCurrency,
+    exchangeRate,
+    minOrderQuantity:
+      product.source === "1688" &&
+      Number.isInteger(product.minOrderQuantity) &&
+      Number(product.minOrderQuantity) > 0
+        ? product.minOrderQuantity
+        : null,
+
+    ...(stockLimit !== null ? { stockLimit } : {}),
+
+    ...(variantData.ticketFields.variantPrices
+      ? {
+          variantPrices: variantData.ticketFields.variantPrices,
+        }
+      : {}),
+
+    ...(variantData.ticketFields.variantTable
+      ? {
+          variantTable: variantData.ticketFields.variantTable,
+        }
+      : {}),
+
+    ...(variantData.ticketFields.variantRequired
+      ? {
+          variantRequired: true,
+        }
+      : {}),
+  };
+
+  // 13. Signature du ticket.
   const { ticket, expiresAt } = signQuotePreviewTicket(
-    {
-      productUrl: url.href,
-      productName,
-      imageUrl:
-        imageUrl && imageUrl.length <= 2000 ? imageUrl : null,
-      productPrice: quote.productPrice.toString(),
-      weightKg: weight ? weight.toString() : null,
-      weightSource: source,
-      subCategoryId: null,
-      commissionRate: settings.commissionRate.toString(),
-      chinaPricePerKg: settings.chinaPricePerKg.toString(),
-      fixedFee: settings.fixedFee.toString(),
-      sourceProductPrice,
-      sourceCurrency: ticketSourceCurrency,
-      exchangeRate,
-      minOrderQuantity:
-        product.source === "1688" &&
-        Number.isInteger(product.minOrderQuantity) &&
-        Number(product.minOrderQuantity) > 0
-          ? product.minOrderQuantity
-          : null,
-    },
+    ticketData,
     deps.now
   );
 
+  // 14. Retour de l'aperçu.
   return {
     ticket,
     preview: {
@@ -316,10 +361,21 @@ export async function previewInternationalQuote(
       productName,
       imageUrl,
       imageUrls: previewImages(product.images),
-      variantOptions: buildVariantOptions(
-        product,
-        sourcePrice > basePrice
-      ),
+      details,
+      stockLimit,
+
+      variantOptions: variantData.variantOptions,
+
+      minOrderQuantity: ticketData.minOrderQuantity ?? null,
+
+      maxTotalPrice: variantData.maxPriceUsd
+        ? computeQuote({
+            productPrice: variantData.maxPriceUsd,
+            weightKg: weight,
+            settings,
+          }).totalPrice.toString()
+        : null,
+
       currency: "USD",
       productPrice: quote.productPrice.toString(),
       shippingCost: quote.shippingCost.toString(),

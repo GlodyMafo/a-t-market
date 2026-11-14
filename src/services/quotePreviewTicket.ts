@@ -33,6 +33,14 @@ const ticketSchema = z
     exchangeRate: exchangeRateSchema.nullable().optional(),
     // MOQ facultatif : utilisé uniquement pour les produits 1688.
     minOrderQuantity: z.number().int().min(1).max(999999).nullable().optional(),
+    // Prix par variante, uniquement quand ils diffèrent : prix distincts + table compacte [sku, index du prix].
+    variantPrices: z.array(money).max(40).optional(),
+    variantTable: z
+      .array(z.tuple([z.string().min(1).max(100), z.number().int().min(0).max(39)]))
+      .max(100)
+      .optional(),
+    variantRequired: z.boolean().optional(),
+    stockLimit: z.number().int().min(1).max(999999).nullable().optional(),
   })
   .strict()
   .superRefine((ticket, ctx) => {
@@ -129,8 +137,7 @@ export function verifyQuotePreviewTicket(
   if (
     typeof ticket !== "string" ||
     ticket.length === 0 ||
-    ticket.length > 6000
-  ) {
+    ticket.length > 12000) {
     throw new Error(INVALID);
   }
 

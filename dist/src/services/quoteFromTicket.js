@@ -6,6 +6,8 @@ const quotes_1 = require("../config/quotes");
 const internationalQuote_service_1 = require("./internationalQuote.service");
 const pricing_service_1 = require("./pricing.service");
 const productUrl_1 = require("./productUrl");
+const quoteDecision_1 = require("./quoteDecision");
+const ticketPricing_1 = require("./ticketPricing");
 /** Erreur « métier » : le ticket est correct mais ne peut pas (ou plus) devenir un devis. */
 class QuoteTicketError extends Error {
     constructor(message) {
@@ -19,7 +21,7 @@ exports.QuoteTicketError = QuoteTicketError;
  * Aucun appel à Apify : tout ce qu'il faut est dans le ticket signé.
  * Le prix annoncé à l'invité est conservé : les taux du ticket sont ceux utilisés.
  */
-async function createQuoteFromTicket(tx, userId, ticket, options) {
+async function createQuoteFromTicket(tx, userId, ticket, options, variantSku) {
     // Défense en profondeur : même si le ticket est signé, on revalide ce qu'il contient.
     try {
         (0, productUrl_1.parseSupportedProductUrl)(ticket.productUrl);
@@ -27,27 +29,42 @@ async function createQuoteFromTicket(tx, userId, ticket, options) {
     catch {
         throw new QuoteTicketError("Ce lien n'est plus pris en charge : refaites l'aperçu.");
     }
-    const subCategory = await tx.subCategory.findFirst({
-        where: {
-            id: ticket.subCategoryId,
-            isActive: true,
-            category: { isActive: true },
-        },
-        select: { id: true },
-    });
-    if (!subCategory) {
-        throw new QuoteTicketError("La sous-catégorie n'est plus disponible : refaites l'aperçu du produit.");
+    if (ticket.subCategoryId) {
+        const subCategory = await tx.subCategory.findFirst({
+            where: {
+                id: ticket.subCategoryId,
+                isActive: true,
+                category: { isActive: true },
+            },
+            select: { id: true },
+        });
+        if (!subCategory) {
+            throw new QuoteTicketError("La sous-catégorie n'est plus disponible : refaites l'aperçu du produit.");
+        }
     }
     // Poids et source du poids vont ensemble : jamais l'un sans l'autre.
     if ((ticket.weightKg === null) !== (ticket.weightSource === null)) {
         throw new QuoteTicketError("Ticket d'aperçu invalide.");
     }
+    // Résolution du prix selon la variante sélectionnée.
+    let unitPrice;
+    try {
+        unitPrice = (0, ticketPricing_1.resolveUnitPrice)(ticket, variantSku);
+    }
+    catch (error) {
+        throw new QuoteTicketError(error instanceof Error
+            ? error.message
+            : "Ticket d'aperçu invalide.");
+    }
     let breakdown;
     let weight = null;
     try {
-        weight = ticket.weightKg === null ? null : (0, pricing_service_1.normalizeWeightKg)(ticket.weightKg);
+        weight =
+            ticket.weightKg === null
+                ? null
+                : (0, pricing_service_1.normalizeWeightKg)(ticket.weightKg);
         breakdown = (0, pricing_service_1.computeQuote)({
-            productPrice: ticket.productPrice,
+            productPrice: unitPrice,
             weightKg: weight,
             settings: {
                 commissionRate: ticket.commissionRate,
@@ -59,7 +76,13 @@ async function createQuoteFromTicket(tx, userId, ticket, options) {
     catch {
         throw new QuoteTicketError("Ticket d'aperçu invalide.");
     }
-    const status = breakdown.isProvisional ? "PENDING_REVIEW" : "AUTO_APPROVED";
+    const settings = await tx.globalSettings.findFirst();
+    const decision = (0, quoteDecision_1.decideQuoteStatus)({
+        isProvisional: breakdown.isProvisional,
+        totalPrice: breakdown.totalPrice,
+        autoApproveMaxUsd: settings?.autoApproveMaxUsd,
+    });
+    const status = decision.status;
     // La validité du prix part de l'émission du ticket (et non de la fusion) :
     // un prix ne devient pas plus frais parce que le client s'est connecté plus tard.
     const issuedAt = new Date((ticket.exp - quotes_1.PREVIEW_TICKET_TTL_HOURS * 3600) * 1000);
@@ -70,6 +93,7 @@ async function createQuoteFromTicket(tx, userId, ticket, options) {
             productName: ticket.productName,
             productPrice: breakdown.productPrice,
             productWeight: weight,
+            imageUrl: ticket.imageUrl ?? null,
             weightSource: ticket.weightSource,
             currency: "USD",
             sourceProductPrice: ticket.sourceProductPrice ?? null,
@@ -83,14 +107,25 @@ async function createQuoteFromTicket(tx, userId, ticket, options) {
             customsCost: breakdown.customsCost,
             commissionCost: breakdown.commissionCost,
             totalPrice: breakdown.totalPrice,
-            subCategoryId: ticket.subCategoryId,
+            subCategoryId: ticket.subCategoryId ?? null,
             status,
             options: (0, internationalQuote_service_1.cleanQuoteOptions)(options),
-            previewId: ticket.id,
-            expiresAt: status === "AUTO_APPROVED" ? (0, internationalQuote_service_1.quoteValidUntil)(issuedAt) : null,
-            adminNotes: breakdown.isProvisional
-                ? "Poids inconnu : total provisoire, validation admin requise avant confirmation."
+            previewId: variantSku
+                ? `${ticket.id}:${variantSku}`
+                : ticket.id,
+            expiresAt: status === "AUTO_APPROVED"
+                ? (0, internationalQuote_service_1.quoteValidUntil)(issuedAt)
                 : null,
+            adminNotes: [
+                breakdown.isProvisional
+                    ? "Poids inconnu : total provisoire, validation admin requise avant confirmation."
+                    : null,
+                variantSku
+                    ? `Variante choisie (SKU) : ${variantSku}`
+                    : null,
+            ]
+                .filter(Boolean)
+                .join(" ") || null,
         },
     });
 }

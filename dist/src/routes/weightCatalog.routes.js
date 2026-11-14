@@ -11,5 +11,5 @@ router.use(auth_middleware_1.authMiddleware);
 router.use(admin_middleware_1.adminMiddleware);
 router.post("/", weightCatalog_controller_1.createOrUpdateWeightCatalogController);
 router.get("/", weightCatalog_controller_1.getWeightCatalogController);
-router.get("/subcategory/:subCategoryId", weightCatalog_controller_1.getWeightBySubCategoryController, (0, validate_1.validate)({ params: common_validator_1.subCategoryIdParams }));
+router.get("/subcategory/:subCategoryId", (0, validate_1.validate)({ params: common_validator_1.subCategoryIdParams }), weightCatalog_controller_1.getWeightBySubCategoryController);
 exports.default = router;

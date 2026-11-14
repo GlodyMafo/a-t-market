@@ -8,6 +8,10 @@ import {
 import { authMiddleware } from "../middlewares/auth.middleware";
 import { extractionRateLimiter, previewRateLimiter } from "../middlewares/rateLimiter";
 import { previewInternationalQuoteController } from "../controllers/quotePreview.controller";
+import { priceQuoteController } from "../controllers/quotePrice.controller";
+import { quotePriceRateLimiter } from "../middlewares/quotePriceRateLimiter";
+
+
 
 const router = Router();
 
@@ -17,6 +21,8 @@ router.post(
   previewRateLimiter,
   previewInternationalQuoteController
 );
+
+router.post("/price", quotePriceRateLimiter, priceQuoteController);
 
 router.post(
   "/",

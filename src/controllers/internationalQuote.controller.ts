@@ -1,9 +1,11 @@
+
 import { prisma } from "../lib/prisma";
 import {
   createQuoteFromTicket,
   QuoteTicketError,
 } from "../services/quoteFromTicket";
 import { verifyQuotePreviewTicket } from "../services/quotePreviewTicket";
+import { notifyAdminsOfPendingQuotes } from "../services/quoteNotifications";
 
 import { safeMessage } from "../utils/appError";
 import { Request, Response } from "express";
@@ -36,7 +38,7 @@ export async function createInternationalQuoteController(
       });
     }
 
-        // Création depuis un aperçu signé : aucune nouvelle extraction Apify.
+    // Création depuis un aperçu signé : aucune nouvelle extraction Apify.
     if (req.body && Object.prototype.hasOwnProperty.call(req.body, "ticket")) {
       const { ticket: rawTicket, options } = req.body;
 
@@ -74,6 +76,9 @@ export async function createInternationalQuoteController(
         const quote = await prisma.$transaction(async (tx) => {
           return createQuoteFromTicket(tx, userId, ticket, options);
         });
+
+        // Alerte administrateur après la création effective du devis.
+        void notifyAdminsOfPendingQuotes();
 
         return res.status(201).json({
           success: true,
@@ -124,7 +129,7 @@ export async function createInternationalQuoteController(
       });
     }
 
-    // Validation stricte de l'URL (domaine pris en charge, pas d'astuce d'adresse)
+    // Validation stricte de l'URL (domaine pris en charge, pas d'astuce d'adresse).
     const parsedUrl = parseSupportedProductUrl(productUrl);
 
     // Extraire le produit depuis son URL pour récupérer son poids éventuel.
@@ -155,6 +160,9 @@ export async function createInternationalQuoteController(
       supportedCurrency
     );
 
+    // Alerte administrateur après la création effective du devis.
+    void notifyAdminsOfPendingQuotes();
+
     return res.status(201).json({
       success: true,
       data: quote,
@@ -175,7 +183,6 @@ export async function getUserQuotesController(
   res: Response
 ) {
   try {
-
     const authReq = req as import("../middlewares/auth.middleware").AuthRequest;
     const userId = authReq.user?.userId;
 

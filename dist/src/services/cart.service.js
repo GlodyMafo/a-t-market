@@ -14,7 +14,6 @@ const quoteEligibility_1 = require("./quoteEligibility");
 const quoteFromTicket_1 = require("./quoteFromTicket");
 const quotePreviewTicket_1 = require("./quotePreviewTicket");
 const productAvailability_1 = require("./productAvailability");
-const productUrl_1 = require("./productUrl");
 const pricing_service_1 = require("./pricing.service");
 // Vérifie qu'un produit est achetable et que la quantité totale demandée est en stock.
 // C'est un contrôle de confort : le contrôle définitif a lieu à la création de la commande.
@@ -86,6 +85,7 @@ const quoteFields = {
     productName: true,
     options: true,
     currency: true,
+    imageUrl: true,
     productPrice: true,
     productWeight: true,
     minOrderQuantity: true,
@@ -134,7 +134,7 @@ async function getCartByUser(userId) {
         if (item.quote) {
             const quote = item.quote;
             const baseIssue = (0, quoteEligibility_1.quoteIssue)(quote, ordered.has(quote.id));
-            const is1688 = (0, productUrl_1.detectProductMarketplace)(quote.productUrl) === "1688";
+            const is1688 = true; // le prix suit la quantité pour toutes les boutiques
             const minOrderQuantity = quote.minOrderQuantity;
             const belowMinimum = is1688 &&
                 minOrderQuantity !== null &&
@@ -189,7 +189,7 @@ async function getCartByUser(userId) {
                 issue,
                 minOrderQuantity,
                 minimumOrderMessage: belowMinimum
-                    ? `Quantité minimale requise pour ce produit 1688 : ${minOrderQuantity}.`
+                    ? `Quantité minimale requise pour ce produit : ${minOrderQuantity}.`
                     : null,
                 cartPricing: cartPricing
                     ? {
@@ -202,6 +202,9 @@ async function getCartByUser(userId) {
                         isProvisional: cartPricing.isProvisional,
                     }
                     : null,
+                lineTotal: (is1688 && cartPricing
+                    ? cartPricing.totalPrice
+                    : quote.totalPrice).toString(),
             };
         }
         const product = item.product;
@@ -219,11 +222,17 @@ async function getCartByUser(userId) {
                 .plus(product.margin)
                 .mul(item.quantity));
         }
+        const unitPrice = new client_1.Prisma.Decimal(product.price).plus(product.margin);
+        // La marge et le prix d'achat ne doivent jamais quitter le serveur.
+        const { margin: _margin, price: _price, ...publicProduct } = product;
         return {
             ...item,
+            product: publicProduct,
             kind: "LOCAL",
             payable: issue === null,
             issue,
+            unitPrice: unitPrice.toString(),
+            lineTotal: unitPrice.mul(item.quantity).toString(),
         };
     });
     return {
@@ -253,7 +262,7 @@ async function updateCartItemQuantity(itemId, quantity, userId) {
             },
             quote: {
                 select: {
-                    productUrl: true,
+                    id: true,
                 },
             },
         },
@@ -264,10 +273,6 @@ async function updateCartItemQuantity(itemId, quantity, userId) {
     if (!item.product) {
         if (!item.quote) {
             throw new Error("Devis international introuvable.");
-        }
-        const marketplace = (0, productUrl_1.detectProductMarketplace)(item.quote.productUrl);
-        if (marketplace !== "1688") {
-            throw new Error("La quantité des devis SHEIN et NOON ne peut pas être modifiée.");
         }
         return prisma_1.prisma.cartItem.update({
             where: { id: itemId },
@@ -319,13 +324,6 @@ async function lockedCart(tx, userId) {
  * Un devis EN ATTENTE peut être ajouté, mais reste non payable.
  */
 async function attachQuote(tx, cartId, quote, quantity = 1) {
-    const marketplace = (0, productUrl_1.detectProductMarketplace)(quote.productUrl);
-    if (marketplace !== "1688" && quantity !== 1) {
-        return {
-            status: "REJECTED",
-            reason: "La quantité des devis SHEIN et NOON est limitée à 1.",
-        };
-    }
     const ordered = await (0, quoteEligibility_1.activeOrderQuoteIds)(tx, [quote.id]);
     const issue = (0, quoteEligibility_1.quoteIssue)(quote, ordered.has(quote.id));
     if (issue !== null && issue !== "PENDING_REVIEW") {
@@ -415,8 +413,9 @@ const mergeSchema = zod_1.z
         zod_1.z
             .object({
             type: zod_1.z.literal("INTERNATIONAL"),
-            ticket: zod_1.z.string().min(1).max(6000),
+            ticket: zod_1.z.string().min(1).max(12000),
             options: zod_1.z.string().max(500).optional(),
+            variantSku: zod_1.z.string().min(1).max(100).optional(),
             quantity: zod_1.z.number().int().min(1).max(999).default(1),
         })
             .strict(),
@@ -445,7 +444,7 @@ async function mergeGuestCart(userId, input) {
                 out.push(await mergeLocalItem(tx, cart.id, index, item.productId, item.quantity));
             }
             else {
-                out.push(await mergeInternationalItem(tx, cart.id, userId, index, item.ticket, item.options, item.quantity));
+                out.push(await mergeInternationalItem(tx, cart.id, userId, index, item.ticket, item.options, item.variantSku, item.quantity));
             }
         }
         return out;
@@ -541,7 +540,7 @@ async function mergeLocalItem(tx, cartId, index, productId, quantity) {
         itemId: created.id,
     };
 }
-async function mergeInternationalItem(tx, cartId, userId, index, rawTicket, options, quantity) {
+async function mergeInternationalItem(tx, cartId, userId, index, rawTicket, options, variantSku, quantity) {
     const base = {
         index,
         type: "INTERNATIONAL",
@@ -549,6 +548,9 @@ async function mergeInternationalItem(tx, cartId, userId, index, rawTicket, opti
     let ticket;
     try {
         ticket = (0, quotePreviewTicket_1.verifyQuotePreviewTicket)(rawTicket);
+        if (ticket.stockLimit && quantity > ticket.stockLimit) {
+            return { ...base, status: "REJECTED", reason: `Seulement ${ticket.stockLimit} disponible(s) chez le vendeur.` };
+        }
     }
     catch {
         return {
@@ -557,9 +559,10 @@ async function mergeInternationalItem(tx, cartId, userId, index, rawTicket, opti
             reason: "Ticket invalide ou expiré : refaites l'aperçu du produit.",
         };
     }
-    // Un ticket ne crée jamais deux devis.
+    // Un ticket crée un devis distinct pour chaque variante sélectionnée.
+    const previewId = variantSku ? `${ticket.id}:${variantSku}` : ticket.id;
     let quote = await tx.internationalQuote.findUnique({
-        where: { previewId: ticket.id },
+        where: { previewId },
     });
     if (quote && quote.userId !== userId) {
         return {
@@ -570,7 +573,7 @@ async function mergeInternationalItem(tx, cartId, userId, index, rawTicket, opti
     }
     if (!quote) {
         try {
-            quote = await (0, quoteFromTicket_1.createQuoteFromTicket)(tx, userId, ticket, options);
+            quote = await (0, quoteFromTicket_1.createQuoteFromTicket)(tx, userId, ticket, options, variantSku);
         }
         catch (error) {
             if (error instanceof quoteFromTicket_1.QuoteTicketError) {

@@ -47,7 +47,6 @@ function calculate1688CartPricing(quote, quantity) {
  * - Devis internationaux : chacun doit être payable.
  * - 1688 : le MOQ est contrôlé avant la création de la commande.
  * - 1688 : prix et poids sont recalculés selon la quantité du panier.
- * - SHEIN et NOON : calcul et quantité historiques conservés.
  */
 async function createOrderFromCart(userId) {
     const cartRef = await prisma_1.prisma.cart.findUnique({
@@ -130,10 +129,6 @@ async function createOrderFromCart(userId) {
                             : "Impossible de calculer le prix du devis 1688.");
                     }
                 }
-                else if (item.quantity !== 1) {
-                    // Défense supplémentaire : SHEIN et NOON restent à quantité 1.
-                    problems.push(`La quantité des devis SHEIN et NOON doit rester égale à 1 (${quote.productName ?? "produit"}).`);
-                }
             }
             else if (!item.product ||
                 !item.product.isActive ||
@@ -170,20 +165,6 @@ async function createOrderFromCart(userId) {
                         margin: pricing.totalPrice.minus(pricing.productPrice),
                         price: pricing.totalPrice,
                         // Le devis d'origine reste inchangé et constitue la référence historique.
-                        quoteSnapshot: (0, quoteSnapshot_1.quoteSnapshot)(quote),
-                    });
-                }
-                else {
-                    // SHEIN et NOON : comportement historique inchangé.
-                    const shippingPart = quote.shippingCost.plus(quote.customsCost);
-                    shippingAmount = shippingAmount.plus(shippingPart);
-                    productsAmount = productsAmount.plus(quote.totalPrice.minus(shippingPart));
-                    itemsData.push({
-                        quote: { connect: { id: quote.id } },
-                        quantity: 1,
-                        basePrice: quote.productPrice,
-                        margin: quote.totalPrice.minus(quote.productPrice),
-                        price: quote.totalPrice,
                         quoteSnapshot: (0, quoteSnapshot_1.quoteSnapshot)(quote),
                     });
                 }

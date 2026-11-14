@@ -1,0 +1,6 @@
+ALTER TYPE "NotificationType" ADD VALUE 'QUOTE_PENDING_REVIEW';
+ALTER TYPE "NotificationType" ADD VALUE 'QUOTE_APPROVED';
+ALTER TYPE "NotificationType" ADD VALUE 'QUOTE_REJECTED';
+
+ALTER TABLE "InternationalQuote"
+ADD COLUMN "adminNotifiedAt" TIMESTAMP(3);
