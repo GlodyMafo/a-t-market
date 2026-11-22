@@ -16,6 +16,8 @@ exports.updateSettingsController = updateSettingsController;
 exports.deleteProductController = deleteProductController;
 exports.getAdminDashboardController = getAdminDashboardController;
 exports.getToPurchaseController = getToPurchaseController;
+exports.getProductAdminController = getProductAdminController;
+exports.getInventoryMovementsController = getInventoryMovementsController;
 const admin_service_1 = require("../services/admin.service");
 const orderTracking_service_1 = require("../services/orderTracking.service");
 const appError_1 = require("../utils/appError");
@@ -223,6 +225,22 @@ async function getAdminDashboardController(req, res) {
 async function getToPurchaseController(req, res) {
     try {
         return res.json({ success: true, data: await (0, admin_service_1.getInternationalOrdersToPurchase)() });
+    }
+    catch (error) {
+        return (0, appError_1.sendError)(res, error);
+    }
+}
+async function getProductAdminController(req, res) {
+    try {
+        return res.json({ success: true, data: await getProductAdmin(req.params.id) });
+    }
+    catch (error) {
+        return (0, appError_1.sendError)(res, error);
+    }
+}
+async function getInventoryMovementsController(req, res) {
+    try {
+        return res.json({ success: true, data: await getInventoryMovements(req.params.productId) });
     }
     catch (error) {
         return (0, appError_1.sendError)(res, error);

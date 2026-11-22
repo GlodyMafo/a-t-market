@@ -11,6 +11,8 @@ const pricing_service_1 = require("./pricing.service");
 const quoteEligibility_1 = require("./quoteEligibility");
 const quoteSnapshot_1 = require("./quoteSnapshot");
 const internationalQuote_service_1 = require("./internationalQuote.service");
+const notification_service_1 = require("./notification.service");
+const quoteNotifications_1 = require("./quoteNotifications");
 class QuoteNotFoundError extends Error {
     constructor() {
         super("Devis introuvable");
@@ -54,7 +56,8 @@ async function getPendingQuotes() {
  * provisoire d'origine reste intact dans l'historique (QuoteRevision).
  */
 async function approveQuote(quoteId, adminId, input = {}) {
-    return prisma_1.prisma.$transaction(async (tx) => {
+    const outbox = [];
+    const updated = await prisma_1.prisma.$transaction(async (tx) => {
         const quote = await lockQuote(tx, quoteId);
         if (quote.status !== "PENDING_REVIEW") {
             throw new Error("Seuls les devis en attente de validation peuvent être approuvés.");
@@ -64,7 +67,8 @@ async function approveQuote(quoteId, adminId, input = {}) {
             throw new Error("Configuration système introuvable");
         }
         const adminProvidedWeight = input.weightKg !== undefined && input.weightKg !== null;
-        if (adminProvidedWeight && new client_1.Prisma.Decimal(input.weightKg).decimalPlaces() > 2) {
+        if (adminProvidedWeight &&
+            new client_1.Prisma.Decimal(input.weightKg).decimalPlaces() > 2) {
             throw new Error("Le poids doit avoir au maximum 2 décimales (précision de 10 g).");
         }
         const weight = adminProvidedWeight
@@ -107,8 +111,11 @@ async function approveQuote(quoteId, adminId, input = {}) {
                 snapshotAfter: (0, quoteSnapshot_1.quoteSnapshot)(updated),
             },
         });
+        outbox.push(await (0, notification_service_1.recordNotification)(tx, (0, quoteNotifications_1.approvedNotification)(updated)));
         return updated;
     });
+    outbox.forEach((record) => (0, notification_service_1.publishNotification)(record));
+    return updated;
 }
 /**
  * Rejette un devis. Possible seulement tant qu'il est en attente ou validé automatiquement :
@@ -120,7 +127,8 @@ async function rejectQuote(quoteId, adminId, adminNotes) {
     if (note.length < 3 || note.length > 500) {
         throw new Error("Un motif de rejet (3 à 500 caractères) est obligatoire.");
     }
-    return prisma_1.prisma.$transaction(async (tx) => {
+    const outbox = [];
+    const updated = await prisma_1.prisma.$transaction(async (tx) => {
         const quote = await lockQuote(tx, quoteId);
         // Un devis déjà dans une commande (non annulée) est figé : le client l'a payé ou va le payer.
         const ordered = await (0, quoteEligibility_1.activeOrderQuoteIds)(tx, [quoteId]);
@@ -144,8 +152,11 @@ async function rejectQuote(quoteId, adminId, adminNotes) {
                 snapshotAfter: (0, quoteSnapshot_1.quoteSnapshot)(updated),
             },
         });
+        outbox.push(await (0, notification_service_1.recordNotification)(tx, (0, quoteNotifications_1.rejectedNotification)(updated, note)));
         return updated;
     });
+    outbox.forEach((record) => (0, notification_service_1.publishNotification)(record));
+    return updated;
 }
 /** Historique complet des décisions admin sur un devis, du plus ancien au plus récent. */
 async function getQuoteHistory(quoteId) {

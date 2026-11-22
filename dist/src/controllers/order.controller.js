@@ -5,6 +5,7 @@ exports.getOrdersByUserController = getOrdersByUserController;
 exports.getOrderByIdController = getOrderByIdController;
 const appError_1 = require("../utils/appError");
 const order_service_1 = require("../services/order.service");
+const orderPublic_1 = require("../services/orderPublic");
 const pagination_1 = require("../utils/pagination");
 // Create order
 async function createOrderController(req, res) {
@@ -12,13 +13,13 @@ async function createOrderController(req, res) {
         const order = await (0, order_service_1.createOrderFromCart)(req.user.userId);
         return res.status(201).json({
             success: true,
-            data: order
+            data: (0, orderPublic_1.toPublicOrder)(order),
         });
     }
     catch (error) {
         return res.status(400).json({
             success: false,
-            message: (0, appError_1.safeMessage)(error)
+            message: (0, appError_1.safeMessage)(error),
         });
     }
 }
@@ -31,24 +32,32 @@ async function getOrdersByUserController(req, res) {
             (0, order_service_1.getOrdersByUser)(userId, paging),
             (0, order_service_1.countOrdersByUser)(userId),
         ]);
-        return res.json({ success: true, data, meta: (0, pagination_1.pageMeta)(total, page, limit) });
+        return res.json({
+            success: true,
+            data: data.map(orderPublic_1.toPublicOrder),
+            meta: (0, pagination_1.pageMeta)(total, page, limit),
+        });
     }
     catch (error) {
-        return res.status(400).json({ success: false, message: (0, appError_1.safeMessage)(error) });
+        return res.status(400).json({
+            success: false,
+            message: (0, appError_1.safeMessage)(error),
+        });
     }
 }
+// Get order by ID
 async function getOrderByIdController(req, res) {
     try {
         const order = await (0, order_service_1.getOrderById)(req.params.id, req.user.userId);
         return res.json({
             success: true,
-            data: order
+            data: (0, orderPublic_1.toPublicOrder)(order),
         });
     }
     catch (error) {
         return res.status(404).json({
             success: false,
-            message: (0, appError_1.safeMessage)(error)
+            message: (0, appError_1.safeMessage)(error),
         });
     }
 }

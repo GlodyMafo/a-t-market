@@ -1,6 +1,10 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = require("express");
+const express_1 = __importDefault(require("express"));
+const express_2 = require("express");
 const admin_controller_1 = require("../controllers/admin.controller");
 const auth_middleware_1 = require("../middlewares/auth.middleware");
 const admin_middleware_1 = require("../middlewares/admin.middleware");
@@ -8,7 +12,9 @@ const validate_1 = require("../middlewares/validate");
 const admin_validator_1 = require("../validators/admin.validator");
 const common_validator_1 = require("../validators/common.validator");
 const category_controller_1 = require("../controllers/category.controller");
-const router = (0, express_1.Router)();
+const upload_controller_1 = require("../controllers/upload.controller");
+const admin_controller_2 = require("../controllers/admin.controller");
+const router = (0, express_2.Router)();
 router.use(auth_middleware_1.authMiddleware);
 router.use(admin_middleware_1.adminMiddleware);
 // --- Tableau de bord ---
@@ -22,16 +28,19 @@ router.post("/orders/:orderId/tracking", (0, validate_1.validate)({ params: comm
 // --- Produits ---
 router.get("/products", admin_controller_1.getAllProductsAdminController);
 router.post("/products", (0, validate_1.validate)({ body: admin_validator_1.createProductSchema }), admin_controller_1.createProductAdminController);
+router.get("/products/:id", (0, validate_1.validate)({ params: common_validator_1.idParams }), admin_controller_2.getProductAdminController);
 router.patch("/products/:id/toggle", (0, validate_1.validate)({ params: common_validator_1.idParams }), admin_controller_1.toggleProductStatusController);
 router.patch("/products/:id", (0, validate_1.validate)({ params: common_validator_1.idParams, body: admin_validator_1.updateProductSchema }), admin_controller_1.updateProductController);
 router.delete("/products/:id", (0, validate_1.validate)({ params: common_validator_1.idParams }), admin_controller_1.deleteProductController);
 // --- Stock ---
 router.get("/inventory", admin_controller_1.getInventoryController);
 router.patch("/inventory/:productId", (0, validate_1.validate)({ params: admin_validator_1.productIdParams, body: admin_validator_1.updateInventorySchema }), admin_controller_1.updateInventoryController);
+router.get("/inventory/:productId/movements", admin_controller_1.getInventoryMovementsController);
 router.post("/inventory/restock/:productId", (0, validate_1.validate)({ params: admin_validator_1.productIdParams, body: admin_validator_1.restockInventorySchema }), admin_controller_1.restockInventoryController);
 // --- Catégories (toutes, actives ou non) ---
 router.get("/categories", category_controller_1.getCategoriesAdminController);
 // --- Réglages ---
 router.get("/settings", admin_controller_1.getSettingsController);
 router.patch("/settings", admin_controller_1.updateSettingsController);
+router.post("/uploads", express_1.default.raw({ type: ["image/jpeg", "image/png", "image/webp"], limit: "5mb" }), upload_controller_1.uploadImageController);
 exports.default = router;

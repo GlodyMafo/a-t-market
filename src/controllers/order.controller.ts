@@ -1,4 +1,6 @@
+
 import { Response } from "express";
+import { z } from "zod";
 import { safeMessage } from "../utils/appError";
 
 import {
@@ -12,13 +14,26 @@ import { toPublicOrder } from "../services/orderPublic";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { parsePagination, pageMeta } from "../utils/pagination";
 
+const createOrderBody = z
+  .object({
+    addressId: z
+      .string({ error: "Choisissez une adresse de livraison." })
+      .min(1, "Choisissez une adresse de livraison.")
+      .max(100),
+  })
+  .strict();
+
 // Create order
 export async function createOrderController(
   req: AuthRequest,
   res: Response
 ) {
   try {
-    const order = await createOrderFromCart(req.user!.userId);
+    const { addressId } = createOrderBody.parse(req.body);
+    const order = await createOrderFromCart(
+      req.user!.userId,
+      addressId
+    );
 
     return res.status(201).json({
       success: true,

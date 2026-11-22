@@ -15,6 +15,7 @@ const quoteFromTicket_1 = require("./quoteFromTicket");
 const quotePreviewTicket_1 = require("./quotePreviewTicket");
 const productAvailability_1 = require("./productAvailability");
 const pricing_service_1 = require("./pricing.service");
+const quoteNotifications_1 = require("./quoteNotifications");
 // Vérifie qu'un produit est achetable et que la quantité totale demandée est en stock.
 // C'est un contrôle de confort : le contrôle définitif a lieu à la création de la commande.
 async function assertAvailable(product, totalQuantity) {
@@ -452,6 +453,8 @@ async function mergeGuestCart(userId, input) {
         maxWait: 5000,
         timeout: 30000,
     });
+    // Alerte administrateur après le commit, sans bloquer la réponse client.
+    void (0, quoteNotifications_1.notifyAdminsOfPendingQuotes)();
     return {
         results,
         cart: await getCartByUser(userId),
@@ -549,7 +552,11 @@ async function mergeInternationalItem(tx, cartId, userId, index, rawTicket, opti
     try {
         ticket = (0, quotePreviewTicket_1.verifyQuotePreviewTicket)(rawTicket);
         if (ticket.stockLimit && quantity > ticket.stockLimit) {
-            return { ...base, status: "REJECTED", reason: `Seulement ${ticket.stockLimit} disponible(s) chez le vendeur.` };
+            return {
+                ...base,
+                status: "REJECTED",
+                reason: `Seulement ${ticket.stockLimit} disponible(s) chez le vendeur.`,
+            };
         }
     }
     catch {

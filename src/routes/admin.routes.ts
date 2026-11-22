@@ -1,3 +1,4 @@
+import express from "express"
 import { Router } from "express";
 
 import {
@@ -7,6 +8,7 @@ import {
   getInventoryController, updateInventoryController, restockInventoryController,
   getSettingsController, updateSettingsController,
   getAdminDashboardController, getToPurchaseController,
+  getInventoryMovementsController,
 } from "../controllers/admin.controller";
 
 import { authMiddleware } from "../middlewares/auth.middleware";
@@ -21,6 +23,9 @@ import {
 import { idParams, orderIdParams } from "../validators/common.validator";
 
 import { getCategoriesAdminController } from "../controllers/category.controller";
+
+import { uploadImageController } from "../controllers/upload.controller";
+import { getProductAdminController } from "../controllers/admin.controller";
 
 
 const router = Router();
@@ -45,6 +50,7 @@ router.post(
 // --- Produits ---
 router.get("/products", getAllProductsAdminController);
 router.post("/products", validate({ body: createProductSchema }), createProductAdminController);
+router.get("/products/:id", validate({ params: idParams }), getProductAdminController);
 router.patch("/products/:id/toggle", validate({ params: idParams }), toggleProductStatusController);
 router.patch(
   "/products/:id",
@@ -60,6 +66,9 @@ router.patch(
   validate({ params: productIdParams, body: updateInventorySchema }),
   updateInventoryController
 );
+
+router.get("/inventory/:productId/movements", getInventoryMovementsController);
+
 router.post(
   "/inventory/restock/:productId",
   validate({ params: productIdParams, body: restockInventorySchema }),
@@ -72,5 +81,11 @@ router.get("/categories", getCategoriesAdminController);
 // --- Réglages ---
 router.get("/settings", getSettingsController);
 router.patch("/settings", updateSettingsController);
+
+router.post(
+  "/uploads",
+  express.raw({ type: ["image/jpeg", "image/png", "image/webp"], limit: "5mb" }),
+  uploadImageController
+);
 
 export default router;

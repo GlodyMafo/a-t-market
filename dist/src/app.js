@@ -24,6 +24,7 @@ const notification_routes_1 = __importDefault(require("./routes/notification.rou
 const user_routes_1 = __importDefault(require("./routes/user.routes"));
 const helmet_1 = __importDefault(require("helmet"));
 const errorHandler_1 = require("./middlewares/errorHandler");
+const upload_controller_1 = require("./controllers/upload.controller");
 const app = (0, express_1.default)();
 // Derrière un proxy (Render) : sans cela, tous les visiteurs auraient la même adresse IP.
 if (env_1.env.TRUST_PROXY_HOPS > 0) {
@@ -37,6 +38,17 @@ app.use((0, cors_1.default)({
 }));
 app.use(express_1.default.json({ limit: "100kb" }));
 app.use("/health", health_routes_1.default);
+app.use("/uploads", express_1.default.static(upload_controller_1.UPLOAD_DIR, {
+    index: false,
+    dotfiles: "deny",
+    maxAge: "30d",
+    immutable: true,
+    setHeaders: (res) => {
+        res.setHeader("X-Content-Type-Options", "nosniff");
+        // Le site (autre domaine) doit pouvoir afficher ces images.
+        res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    },
+}));
 app.use("/api/products", product_routes_1.default);
 app.use("/api/cart", cart_routes_1.default);
 app.use("/api/orders", order_routes_1.default);

@@ -13,6 +13,8 @@ exports.restockInventory = restockInventory;
 exports.deleteProduct = deleteProduct;
 exports.getAdminDashboard = getAdminDashboard;
 exports.getInternationalOrdersToPurchase = getInternationalOrdersToPurchase;
+exports.getProductAdminController = getProductAdminController;
+exports.getInventoryMovements = getInventoryMovements;
 const prisma_1 = require("../lib/prisma");
 const orderFlow_1 = require("./orderFlow");
 const appError_1 = require("../utils/appError");
@@ -109,25 +111,30 @@ async function toggleProductStatus(productId) {
     return updatedProduct;
 }
 async function updateProduct(productId, data) {
-    const product = await prisma_1.prisma.product.findUnique({
-        where: {
-            id: productId
-        }
-    });
-    if (!product) {
+    const { images, subCategoryId, ...scalar } = data;
+    const product = await prisma_1.prisma.product.findUnique({ where: { id: productId }, select: { id: true } });
+    if (!product)
         throw new Error("Produit introuvable");
+    if (subCategoryId) {
+        const subCategory = await prisma_1.prisma.subCategory.findUnique({
+            where: { id: subCategoryId },
+            include: { category: { select: { isActive: true } } },
+        });
+        if (!subCategory)
+            throw new Error("Sous-catégorie introuvable");
+        if (!subCategory.isActive || !subCategory.category.isActive)
+            throw new Error("Cette sous-catégorie est désactivée");
     }
-    const updatedProduct = await prisma_1.prisma.product.update({
-        where: {
-            id: productId
+    return prisma_1.prisma.product.update({
+        where: { id: productId },
+        data: {
+            ...scalar,
+            ...(subCategoryId ? { subCategoryId } : {}),
+            // Les photos sont remplacées en bloc, dans l'ordre reçu (la première est la principale).
+            ...(images ? { images: { deleteMany: {}, create: images.map((imageUrl, index) => ({ imageUrl, position: index + 1 })) } } : {}),
         },
-        data,
-        include: {
-            images: true,
-            inventory: true
-        }
+        include: { images: true, inventory: true },
     });
-    return updatedProduct;
 }
 async function getInventory(paging) {
     return prisma_1.prisma.inventory.findMany({
@@ -282,5 +289,20 @@ async function getInternationalOrdersToPurchase() {
                 select: { id: true, quantity: true, price: true, quoteSnapshot: true },
             },
         },
+    });
+}
+async function getProductAdminController(req, res) {
+    try {
+        return res.json({ success: true, data: await getProductAdmin(req.params.id) });
+    }
+    catch (error) {
+        return sendError(res, error);
+    }
+}
+async function getInventoryMovements(productId) {
+    return prisma_1.prisma.inventoryMovement.findMany({
+        where: { productId },
+        orderBy: { createdAt: "desc" },
+        take: 50,
     });
 }

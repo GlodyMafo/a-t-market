@@ -2,13 +2,15 @@ import { prisma } from "../lib/prisma";
 import { Prisma } from "../../generated/prisma/client";
 import { allowedNextStatuses, getOrderKind } from "./orderFlow";
 import { ConflictError, NotFoundError } from "../utils/appError";
-import type { Paging } from "../utils/pagination"
+import type { Paging } from "../utils/pagination";
 
 interface UpdateProductData {
   name?: string;
   description?: string;
   price?: number;
   margin?: number;
+  images?: string[];       // <-- Ajouté
+  subCategoryId?: string;  // <-- Ajouté
 }
 
 export const countAllOrders = () => prisma.order.count();
@@ -75,7 +77,7 @@ export async function getAdminStats() {
   const revenueResult =
     await prisma.order.aggregate({
 
-     where: { status: { in: ["PAID", "DELIVERED"] } },
+      where: { status: { in: ["PAID", "DELIVERED"] } },
 
       _sum: {
         totalAmount: true
@@ -158,49 +160,31 @@ export async function toggleProductStatus(
 }
 
 
-export async function updateProduct(
-  productId: string,
-  data: UpdateProductData
-) {
+export async function updateProduct(productId: string, data: UpdateProductData) {
+  const { images, subCategoryId, ...scalar } = data;
 
-  const product =
-    await prisma.product.findUnique({
+  const product = await prisma.product.findUnique({ where: { id: productId }, select: { id: true } });
+  if (!product) throw new Error("Produit introuvable");
 
-      where: {
-        id: productId
-      }
-
+  if (subCategoryId) {
+    const subCategory = await prisma.subCategory.findUnique({
+      where: { id: subCategoryId },
+      include: { category: { select: { isActive: true } } },
     });
-
-  if (!product) {
-
-    throw new Error(
-      "Produit introuvable"
-    );
-
+    if (!subCategory) throw new Error("Sous-catégorie introuvable");
+    if (!subCategory.isActive || !subCategory.category.isActive) throw new Error("Cette sous-catégorie est désactivée");
   }
 
-  const updatedProduct =
-    await prisma.product.update({
-
-      where: {
-        id: productId
-      },
-
-      data,
-
-      include: {
-
-        images: true,
-
-        inventory: true
-
-      }
-
-    });
-
-  return updatedProduct;
-
+  return prisma.product.update({
+    where: { id: productId },
+    data: {
+      ...scalar,
+      ...(subCategoryId ? { subCategoryId } : {}),
+      // Les photos sont remplacées en bloc, dans l'ordre reçu (la première est la principale).
+      ...(images ? { images: { deleteMany: {}, create: images.map((imageUrl: string, index: number) => ({ imageUrl, position: index + 1 })) } } : {}),
+    },
+    include: { images: true, inventory: true },
+  });
 }
 
 
@@ -402,3 +386,27 @@ export async function getInternationalOrdersToPurchase() {
     },
   });
 }
+
+// ---------- Récupération d'un produit unique (Admin) ----------
+export async function getProductAdmin(productId: string) {
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+    include: { images: true, inventory: true, subCategory: true },
+  });
+
+  if (!product) {
+    throw new NotFoundError("Produit introuvable");
+  }
+
+  return product;
+}
+
+export async function getInventoryMovements(productId: string) {
+  return prisma.inventoryMovement.findMany({
+    where: { productId },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+  });
+}
+
+

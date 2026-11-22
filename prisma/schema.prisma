@@ -318,6 +318,8 @@ model Order {
 
   payments Payment[]
 
+  deliveryAddress Json?
+
   trackingEvents TrackingEvent[]
 
   notifications Notification[]

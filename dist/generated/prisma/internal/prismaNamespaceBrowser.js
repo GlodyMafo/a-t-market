@@ -239,6 +239,7 @@ exports.InternationalQuoteScalarFieldEnum = {
     expiresAt: 'expiresAt',
     options: 'options',
     adminNotes: 'adminNotes',
+    adminNotifiedAt: 'adminNotifiedAt',
     totalPrice: 'totalPrice',
     createdAt: 'createdAt'
 };

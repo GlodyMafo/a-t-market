@@ -23,7 +23,7 @@ import {
   recordNotification,
 } from "./notification.service";
 
-import { notifyAdmin } from "./admin.email.service"
+import { notifyAdmin } from "./admin.email.service";
 
 const Decimal = Prisma.Decimal;
 
@@ -75,8 +75,12 @@ function calculate1688CartPricing(
  * - Devis internationaux : chacun doit être payable.
  * - 1688 : le MOQ est contrôlé avant la création de la commande.
  * - 1688 : prix et poids sont recalculés selon la quantité du panier.
+ * - Adresse de livraison : une copie est enregistrée dans la commande.
  */
-export async function createOrderFromCart(userId: string) {
+export async function createOrderFromCart(
+  userId: string,
+  addressId: string
+) {
   const cartRef = await prisma.cart.findUnique({
     where: { userId },
     select: { id: true },
@@ -91,6 +95,29 @@ export async function createOrderFromCart(userId: string) {
     await tx.$queryRaw`
       SELECT id FROM "Cart" WHERE id = ${cartRef.id} FOR UPDATE
     `;
+
+    // Vérification de l'adresse de livraison du client.
+    const address = await tx.address.findFirst({
+      where: { id: addressId, userId },
+    });
+
+    if (!address) {
+      throw new Error(
+        "Adresse de livraison introuvable : choisissez-en une autre."
+      );
+    }
+
+    // Copie de l'adresse pour conserver son état au moment de la commande.
+    const deliveryAddress = {
+      label: address.label,
+      fullName: address.fullName,
+      phone: address.phone,
+      city: address.city,
+      commune: address.commune,
+      neighborhood: address.neighborhood,
+      street: address.street,
+      landmark: address.landmark,
+    };
 
     const cart = await tx.cart.findUniqueOrThrow({
       where: { id: cartRef.id },
@@ -280,6 +307,7 @@ export async function createOrderFromCart(userId: string) {
         shippingAmount,
         totalAmount,
         status: "PENDING_PAYMENT",
+        deliveryAddress,
         items: {
           create: itemsData,
         },

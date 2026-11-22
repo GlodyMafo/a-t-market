@@ -5,6 +5,7 @@ exports.getUserQuotesController = getUserQuotesController;
 const prisma_1 = require("../lib/prisma");
 const quoteFromTicket_1 = require("../services/quoteFromTicket");
 const quotePreviewTicket_1 = require("../services/quotePreviewTicket");
+const quoteNotifications_1 = require("../services/quoteNotifications");
 const appError_1 = require("../utils/appError");
 const internationalQuote_service_1 = require("../services/internationalQuote.service");
 const externalProduct_service_1 = require("../services/externalProduct.service");
@@ -57,6 +58,8 @@ async function createInternationalQuoteController(req, res) {
                 const quote = await prisma_1.prisma.$transaction(async (tx) => {
                     return (0, quoteFromTicket_1.createQuoteFromTicket)(tx, userId, ticket, options);
                 });
+                // Alerte administrateur après la création effective du devis.
+                void (0, quoteNotifications_1.notifyAdminsOfPendingQuotes)();
                 return res.status(201).json({
                     success: true,
                     data: quote,
@@ -99,7 +102,7 @@ async function createInternationalQuoteController(req, res) {
                 message: "productUrl et subCategoryId sont obligatoires",
             });
         }
-        // Validation stricte de l'URL (domaine pris en charge, pas d'astuce d'adresse)
+        // Validation stricte de l'URL (domaine pris en charge, pas d'astuce d'adresse).
         const parsedUrl = (0, productUrl_1.parseSupportedProductUrl)(productUrl);
         // Extraire le produit depuis son URL pour récupérer son poids éventuel.
         const product = await externalProductService.fetchProduct(parsedUrl.href);
@@ -113,6 +116,8 @@ async function createInternationalQuoteController(req, res) {
         }
         const supportedCurrency = currency === "AED" ? "AED" : "USD";
         const quote = await (0, internationalQuote_service_1.createInternationalQuote)(userId, parsedUrl.href, cleanProductName(productName) || product.name, Number(product.price), subCategoryId, product.weightKg, options, supportedCurrency);
+        // Alerte administrateur après la création effective du devis.
+        void (0, quoteNotifications_1.notifyAdminsOfPendingQuotes)();
         return res.status(201).json({
             success: true,
             data: quote,

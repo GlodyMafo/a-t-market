@@ -21,6 +21,7 @@ import notificationRoutes from "./routes/notification.routes"
 import userRoutes from "./routes/user.routes";
 import helmet from "helmet";
 import { errorHandler, notFoundHandler } from "./middlewares/errorHandler";
+import { UPLOAD_DIR } from "./controllers/upload.controller";
 
 
 
@@ -47,6 +48,21 @@ app.use(
 app.use(express.json({ limit: "100kb" }));
 
 app.use("/health", healthRoutes);
+
+app.use(
+  "/uploads",
+  express.static(UPLOAD_DIR, {
+    index: false,
+    dotfiles: "deny",
+    maxAge: "30d",
+    immutable: true,
+    setHeaders: (res) => {
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      // Le site (autre domaine) doit pouvoir afficher ces images.
+      res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    },
+  })
+);
 
 app.use(
  "/api/products",

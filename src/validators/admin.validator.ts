@@ -56,6 +56,8 @@ export const updateProductSchema = z
     description: description.optional(),
     price: price.optional(),
     margin: margin.optional(),
+    images: z.array(z.string().trim().min(1).max(500)).max(3, "Maximum 3 images par produit").optional(),
+    subCategoryId: id.optional(),
   })
   .strict()
   .refine((o) => Object.keys(o).length > 0, "Aucun champ à modifier");

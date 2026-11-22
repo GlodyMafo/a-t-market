@@ -49,6 +49,8 @@ exports.updateProductSchema = zod_1.z
     description: description.optional(),
     price: price.optional(),
     margin: margin.optional(),
+    images: zod_1.z.array(zod_1.z.string().trim().min(1).max(500)).max(3, "Maximum 3 images par produit").optional(),
+    subCategoryId: common_validator_1.id.optional(),
 })
     .strict()
     .refine((o) => Object.keys(o).length > 0, "Aucun champ à modifier");

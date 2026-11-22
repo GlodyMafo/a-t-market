@@ -4,7 +4,9 @@ import {
   getOrderDetails, getAllOrders, getAdminStats, getAllProductsAdmin, toggleProductStatus,
   updateProduct, getInventory, updateInventory, restockInventory,
   deleteProduct, getAdminDashboard, getInternationalOrdersToPurchase, countAllOrders, 
-  countProductsAdmin, countInventory
+  countProductsAdmin, countInventory,
+  getProductAdmin,        
+  getInventoryMovements   
 } from "../services/admin.service";
 
 import { postTrackingEvent } from "../services/orderTracking.service";
@@ -395,6 +397,22 @@ export async function getAdminDashboardController(req: Request, res: Response) {
 export async function getToPurchaseController(req: Request, res: Response) {
   try {
     return res.json({ success: true, data: await getInternationalOrdersToPurchase() });
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
+export async function getProductAdminController(req: Request, res: Response) {
+  try {
+    return res.json({ success: true, data: await getProductAdmin(req.params.id as string) });
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
+export async function getInventoryMovementsController(req: Request, res: Response) {
+  try {
+    return res.json({ success: true, data: await getInventoryMovements(req.params.productId as string) });
   } catch (error) {
     return sendError(res, error);
   }
